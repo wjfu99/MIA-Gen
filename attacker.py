@@ -50,8 +50,9 @@ def save_img(img_tensor: torch.Tensor, dir_path: str, img_name: str):
     img = img.astype("uint8")
     imwrite(os.path.join(dir_path, f"{img_name}"), img)
 
+input = {"data": eval_dataset[:25].to(device)}
 ## Reconstructions
-reconstructions = trained_model.reconstruct(eval_dataset[:25].to(device)).detach().cpu()
+reconstructions = trained_model(input).recon_x.detach().cpu()
 output_dir='./data/mnist/gen_data'
 for j in range(len(reconstructions)):
     save_img(
