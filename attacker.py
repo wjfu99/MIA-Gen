@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch
 import pythae
+import torch.nn.functional as F
 from imageio import imwrite
 from pythae.models import AutoModel
 from pythae.samplers import NormalSampler
@@ -50,17 +51,63 @@ def save_img(img_tensor: torch.Tensor, dir_path: str, img_name: str):
     img = img.astype("uint8")
     imwrite(os.path.join(dir_path, f"{img_name}"), img)
 
-input = {"data": eval_dataset[:25].to(device)}
-## Reconstructions
-reconstructions = trained_model(input).recon_x.detach().cpu()
-output_dir='./data/mnist/gen_data'
-for j in range(len(reconstructions)):
-    save_img(
-        reconstructions[j], output_dir, "%08d.png" % int(j)
-    )
 
-output_dir='./data/mnist/eval_data'
-for j in range(len(eval_dataset[:25])):
-    save_img(
-        eval_dataset[:25][j], output_dir, "%08d.png" % int(j)
-    )
+def eval_loss(input):
+    input = {"data": input.to(device)}
+    output = trained_model(input)
+    recon_x = output.recon_x
+    x = input['data']
+    recon_loss = F.mse_loss(
+        recon_x.reshape(x.shape[0], -1),
+        x.reshape(x.shape[0], -1),
+        reduction="none",
+    ).sum(dim=-1)
+    return recon_loss
+
+def mask_tensor(tensor, prob, num_masks=1):
+    masks = []
+
+    for i in range(num_masks):
+        # create a tensor of binary values with the same shape as the input tensor
+        mask = torch.bernoulli(torch.full(tensor.shape, prob))
+        # apply the mask on the original tensor
+        masked_tensor = tensor * mask
+        masks.append(masked_tensor)
+    return masks
+
+def add_gaussian_noise(tensor, noise_scale, num_noised=1):
+    noised_tensors = []
+    for i in range(num_noised):
+        # generate random noise tensor
+        noise = torch.randn(tensor.size()) * noise_scale
+        # add noise to the input tensor
+        noised_tensor = tensor + noise
+        noised_tensors.append(noised_tensor)
+    return noised_tensors
+
+for data in train_dataset[:25]:
+    ori_loss = eval_loss(data)
+    masks = mask_tensor(data, prob=0.3, num_masks=10)
+    # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=10)
+    per_loss = []
+    avg_loss = 0
+    for mask in masks:
+        per_loss.append(eval_loss(mask))
+        avg_loss += eval_loss(mask)
+    a = 1
+
+
+# input = {"data": eval_dataset[:25].to(device)}
+# ## Reconstructions
+# reconstructions = trained_model(input).recon_x.detach().cpu()
+# output_dir='./data/mnist/gen_data'
+# for j in range(len(reconstructions)):
+#     save_img(
+#         reconstructions[j], output_dir, "%08d.png" % int(j)
+#     )
+#
+# output_dir='./data/mnist/eval_data'
+# for j in range(len(eval_dataset[:25])):
+#     save_img(
+#         eval_dataset[:25][j], output_dir, "%08d.png" % int(j)
+#     )
