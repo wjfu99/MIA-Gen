@@ -87,8 +87,8 @@ def add_gaussian_noise(tensor, noise_scale, num_noised=1):
 
 for data in train_dataset[:25]:
     ori_loss = eval_loss(data)
-    masks = mask_tensor(data, prob=0.3, num_masks=10)
-    # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=10)
+    # masks = mask_tensor(data, prob=0.3, num_masks=10)
+    masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=10)
     per_loss = []
     avg_loss = 0
     for mask in masks:
