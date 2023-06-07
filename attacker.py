@@ -62,7 +62,7 @@ def eval_loss(input):
         x.reshape(x.shape[0], -1),
         reduction="none",
     ).sum(dim=-1)
-    return recon_loss
+    return recon_loss.item()
 
 def mask_tensor(tensor, prob, num_masks=1):
     masks = []
@@ -87,17 +87,26 @@ def add_gaussian_noise(tensor, noise_scale, num_noised=1):
 
 def eval_perturb(dataset):
     losses = []
+    ori_losses = []
+    var_losses = []
+    per_losses = []
+    per_num = 100
     for data in dataset:
         ori_loss = eval_loss(data)
         # masks = mask_tensor(data, prob=0.3, num_masks=10)
-        masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=100)
+        masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
         per_loss = []
         avg_loss = 0
         for mask in masks:
-            per_loss.append(eval_loss(mask))
-            avg_loss += eval_loss(mask)
+            recon_loss = eval_loss(mask)
+            per_loss.append(recon_loss)
+            avg_loss += recon_loss
+        avg_loss = avg_loss / per_num
+        ori_losses.append(ori_loss)
+        per_losses.append(per_loss)
         losses.append(avg_loss)
-    return losses
+        var_losses.append(avg_loss-ori_loss)
+    return losses, var_losses, per_losses, ori_losses
 
 eval_losses = eval_perturb(eval_dataset[:25])
 train_losses = eval_perturb(train_dataset[:25])
