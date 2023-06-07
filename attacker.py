@@ -85,17 +85,22 @@ def add_gaussian_noise(tensor, noise_scale, num_noised=1):
         noised_tensors.append(noised_tensor)
     return noised_tensors
 
-for data in train_dataset[:25]:
-    ori_loss = eval_loss(data)
-    # masks = mask_tensor(data, prob=0.3, num_masks=10)
-    masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=10)
-    per_loss = []
-    avg_loss = 0
-    for mask in masks:
-        per_loss.append(eval_loss(mask))
-        avg_loss += eval_loss(mask)
-    a = 1
+def eval_perturb(dataset):
+    losses = []
+    for data in dataset:
+        ori_loss = eval_loss(data)
+        # masks = mask_tensor(data, prob=0.3, num_masks=10)
+        masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=100)
+        per_loss = []
+        avg_loss = 0
+        for mask in masks:
+            per_loss.append(eval_loss(mask))
+            avg_loss += eval_loss(mask)
+        losses.append(avg_loss)
+    return losses
 
+eval_losses = eval_perturb(eval_dataset[:25])
+train_losses = eval_perturb(train_dataset[:25])
 
 # input = {"data": eval_dataset[:25].to(device)}
 # ## Reconstructions
