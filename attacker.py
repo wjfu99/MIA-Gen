@@ -96,7 +96,7 @@ def eval_perturb(dataset):
     for data in dataset:
         ori_loss = eval_loss(data)
         # masks = mask_tensor(data, prob=0.3, num_masks=10)
-        masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
+        masks = add_gaussian_noise(data, noise_scale=1, num_noised=per_num)
         per_loss = []
         avg_loss = 0
         for mask in masks:
