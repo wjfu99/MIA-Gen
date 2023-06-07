@@ -7,6 +7,8 @@ from imageio import imwrite
 from pythae.models import AutoModel
 from pythae.samplers import NormalSampler
 import torchvision.datasets as datasets
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -106,10 +108,26 @@ def eval_perturb(dataset):
         per_losses.append(per_loss)
         losses.append(avg_loss)
         var_losses.append(avg_loss-ori_loss)
-    return losses, var_losses, per_losses, ori_losses
+    output = {
+        'losses': np.array(losses),
+        'var_losses': np.array(var_losses),
+        'per_losses': np.array(per_losses),
+        'ori_losses': np.array(ori_losses)
+    }
+    return output
+
 
 eval_losses = eval_perturb(eval_dataset[:25])
 train_losses = eval_perturb(train_dataset[:25])
+
+plt_num = 10
+for i in range(plt_num):
+    train = train_losses['per_losses'][i] - train_losses['ori_losses'][i]
+    eval = eval_losses['per_losses'][i] - eval_losses['ori_losses'][i]
+    sns.kdeplot(train, fill=True, color='red')
+    sns.kdeplot(eval,  fill=True, color='blue')
+
+plt.show()
 
 # input = {"data": eval_dataset[:25].to(device)}
 # ## Reconstructions
