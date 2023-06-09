@@ -98,8 +98,8 @@ def eval_perturb(dataset):
     per_num = 100
     for data in dataset:
         ori_loss = eval_loss(data)[2]
-        # masks = mask_tensor(data, prob=0.3, num_masks=per_num)
-        masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
+        masks = mask_tensor(data, prob=0.3, num_masks=per_num)
+        # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
         per_loss = []
         avg_loss = 0
         for mask in masks:
@@ -122,8 +122,8 @@ def eval_perturb(dataset):
     return output
 
 
-eval_losses = eval_perturb(eval_dataset[:25])
-train_losses = eval_perturb(train_dataset[:25])
+eval_losses = eval_perturb(eval_dataset[:100])
+train_losses = eval_perturb(train_dataset[:100])
 
 plt_num = 10
 for i in range(plt_num):
@@ -136,6 +136,15 @@ plt.ylabel('Density')
 plt.legend(['Member', 'Non-member'])  # Add a single legend with both labels
 plt.show()
 
+train = train_losses['peak_losses'] - train_losses['ori_losses']
+eval = eval_losses['peak_losses'] - eval_losses['ori_losses']
+
+sns.kdeplot(train, fill=True, color='red', alpha=0.5)
+sns.kdeplot(eval, fill=True, color='blue', alpha=0.5)
+plt.xlabel('Increase of loss')
+plt.ylabel('Density')
+plt.legend(['Member', 'Non-member'])  # Add a single legend with both labels
+plt.show()
 # input = {"data": eval_dataset[:25].to(device)}
 # ## Reconstructions
 # reconstructions = trained_model(input).recon_x.detach().cpu()
