@@ -57,14 +57,10 @@ def save_img(img_tensor: torch.Tensor, dir_path: str, img_name: str):
 def eval_loss(input):
     input = {"data": input.to(device)}
     output = trained_model(input)
-    recon_x = output.recon_x
-    x = input['data']
-    recon_loss = F.mse_loss(
-        recon_x.reshape(x.shape[0], -1),
-        x.reshape(x.shape[0], -1),
-        reduction="none",
-    ).sum(dim=-1)
-    return recon_loss.item()
+    recon_loss = output.recon_loss
+    reg_loss = output.reg_loss
+    loss = output.loss
+    return recon_loss.item(), reg_loss.item(), loss.item()
 
 def mask_tensor(tensor, prob, num_masks=1):
     masks = []
@@ -94,13 +90,13 @@ def eval_perturb(dataset):
     per_losses = []
     per_num = 100
     for data in dataset:
-        ori_loss = eval_loss(data)
+        ori_loss = eval_loss(data)[2]
         masks = mask_tensor(data, prob=0.3, num_masks=10)
         # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
         per_loss = []
         avg_loss = 0
         for mask in masks:
-            recon_loss = eval_loss(mask)
+            recon_loss = eval_loss(mask)[2]
             per_loss.append(recon_loss)
             avg_loss += recon_loss
         avg_loss = avg_loss / per_num
