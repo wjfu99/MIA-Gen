@@ -125,7 +125,7 @@ def eval_perturb(dataset):
 eval_losses = eval_perturb(eval_dataset[:100])
 train_losses = eval_perturb(train_dataset[:100])
 
-plt_num = 10
+plt_num = 5
 for i in range(plt_num):
     train = train_losses['per_losses'][i] - train_losses['ori_losses'][i]
     eval = eval_losses['per_losses'][i] - eval_losses['ori_losses'][i]
@@ -136,12 +136,12 @@ plt.ylabel('Density')
 plt.legend(['Member', 'Non-member'])  # Add a single legend with both labels
 plt.show()
 
-train = train_losses['peak_losses'] - train_losses['ori_losses']
-eval = eval_losses['peak_losses'] - eval_losses['ori_losses']
+train = np.mean(train_losses['per_losses'] - train_losses['ori_losses'], axis=1)
+eval = np.mean(eval_losses['per_losses'] - eval_losses['ori_losses'], axis=1)
 
 sns.kdeplot(train, fill=True, color='red', alpha=0.5)
 sns.kdeplot(eval, fill=True, color='blue', alpha=0.5)
-plt.xlabel('Increase of loss')
+plt.xlabel('Peak increase of loss')
 plt.ylabel('Density')
 plt.legend(['Member', 'Non-member'])  # Add a single legend with both labels
 plt.show()
