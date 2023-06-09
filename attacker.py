@@ -95,8 +95,8 @@ def eval_perturb(dataset):
     per_num = 100
     for data in dataset:
         ori_loss = eval_loss(data)
-        # masks = mask_tensor(data, prob=0.3, num_masks=10)
-        masks = add_gaussian_noise(data, noise_scale=1, num_noised=per_num)
+        masks = mask_tensor(data, prob=0.3, num_masks=10)
+        # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
         per_loss = []
         avg_loss = 0
         for mask in masks:
@@ -124,9 +124,11 @@ plt_num = 10
 for i in range(plt_num):
     train = train_losses['per_losses'][i] - train_losses['ori_losses'][i]
     eval = eval_losses['per_losses'][i] - eval_losses['ori_losses'][i]
-    sns.kdeplot(train, fill=True, color='red')
-    sns.kdeplot(eval,  fill=True, color='blue')
-
+    sns.kdeplot(train, fill=True, color='red', alpha=0.5)
+    sns.kdeplot(eval, fill=True, color='blue', alpha=0.5)
+plt.xlabel('Increase of loss')
+plt.ylabel('Density')
+plt.legend(['Member', 'Non-member'])  # Add a single legend with both labels
 plt.show()
 
 # input = {"data": eval_dataset[:25].to(device)}
