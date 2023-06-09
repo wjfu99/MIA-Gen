@@ -84,15 +84,22 @@ def add_gaussian_noise(tensor, noise_scale, num_noised=1):
     return noised_tensors
 
 def eval_perturb(dataset):
+    """
+    Evaluate the loss of the perturbed data
+
+    :param dataset: N*1*28*28
+    :return: losses: N*1; var_losses: N*1; per_losses: N*Mask_Num; ori_losses: N*1
+    """
     losses = []
     ori_losses = []
     var_losses = []
     per_losses = []
+    peak_losses = []
     per_num = 100
     for data in dataset:
         ori_loss = eval_loss(data)[2]
-        masks = mask_tensor(data, prob=0.3, num_masks=10)
-        # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
+        # masks = mask_tensor(data, prob=0.3, num_masks=per_num)
+        masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
         per_loss = []
         avg_loss = 0
         for mask in masks:
@@ -104,11 +111,13 @@ def eval_perturb(dataset):
         per_losses.append(per_loss)
         losses.append(avg_loss)
         var_losses.append(avg_loss-ori_loss)
+        peak_losses.append(np.max(per_loss) - ori_loss)
     output = {
+        'per_losses': np.array(per_losses),
+        'ori_losses': np.array(ori_losses),
         'losses': np.array(losses),
         'var_losses': np.array(var_losses),
-        'per_losses': np.array(per_losses),
-        'ori_losses': np.array(ori_losses)
+        'peak_losses': np.array(peak_losses)
     }
     return output
 
