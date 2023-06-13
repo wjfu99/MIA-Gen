@@ -144,8 +144,8 @@ plt.ylabel('Density')
 plt.legend(['Member', 'Non-member'])  # Add a single legend with both labels
 plt.show()
 
-train = np.mean(train_losses['per_losses'] - train_losses['ori_losses'], axis=1)
-eval = np.mean(eval_losses['per_losses'] - eval_losses['ori_losses'], axis=1)
+train = np.min(train_losses['per_losses'] - train_losses['ori_losses'], axis=1)
+eval = np.min(eval_losses['per_losses'] - eval_losses['ori_losses'], axis=1)
 
 sns.kdeplot(train, fill=True, color='red', alpha=0.5)
 sns.kdeplot(eval, fill=True, color='blue', alpha=0.5)
