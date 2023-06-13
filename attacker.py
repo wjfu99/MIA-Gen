@@ -105,13 +105,13 @@ def eval_perturb(dataset):
     peak_losses = []
     per_num = 100
     for data in tqdm(dataset):
-        ori_loss = eval_loss(data).loss.item()
+        ori_loss = eval_loss(data).recon_loss.item()
         masks = mask_tensor(data, prob=0.3, num_masks=per_num)
         # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
         per_loss = []
         avg_loss = 0
         for mask in masks:
-            recon_loss = eval_loss(mask).loss.item()
+            recon_loss = eval_loss(mask).recon_loss.item()
             per_loss.append(recon_loss)
             avg_loss += recon_loss
         avg_loss = avg_loss / per_num
