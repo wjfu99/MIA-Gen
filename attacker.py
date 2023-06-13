@@ -9,6 +9,7 @@ from pythae.samplers import NormalSampler
 import torchvision.datasets as datasets
 import matplotlib.pyplot as plt
 import seaborn as sns
+from tqdm import tqdm
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -53,6 +54,13 @@ def save_img(img_tensor: torch.Tensor, dir_path: str, img_name: str):
     img = img.astype("uint8")
     imwrite(os.path.join(dir_path, f"{img_name}"), img)
 
+def show_image(image):
+    # show reconstructions
+    fig, axes = plt.subplots(figsize=(10, 10))
+    axes.imshow(image.cpu().squeeze(), cmap='gray')
+    axes.axis('off')
+    plt.tight_layout(pad=0.)
+    plt.show()
 
 def eval_loss(input):
     input = {"data": input.to(device)}
@@ -60,7 +68,7 @@ def eval_loss(input):
     recon_loss = output.recon_loss
     reg_loss = output.reg_loss
     loss = output.loss
-    return recon_loss.item(), reg_loss.item(), loss.item()
+    return output
 
 def mask_tensor(tensor, prob, num_masks=1):
     masks = []
@@ -96,14 +104,14 @@ def eval_perturb(dataset):
     per_losses = []
     peak_losses = []
     per_num = 100
-    for data in dataset:
-        ori_loss = eval_loss(data)[2]
+    for data in tqdm(dataset):
+        ori_loss = eval_loss(data).loss.item()
         masks = mask_tensor(data, prob=0.3, num_masks=per_num)
         # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
         per_loss = []
         avg_loss = 0
         for mask in masks:
-            recon_loss = eval_loss(mask)[2]
+            recon_loss = eval_loss(mask).loss.item()
             per_loss.append(recon_loss)
             avg_loss += recon_loss
         avg_loss = avg_loss / per_num
