@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from imageio import imwrite
 from pythae.models import AutoModel
 from pythae.samplers import NormalSampler
+from sklearn.metrics import roc_auc_score, roc_curve, auc, precision_recall_curve, f1_score
 import torchvision.datasets as datasets
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -105,13 +106,13 @@ def eval_perturb(dataset):
     peak_losses = []
     per_num = 100
     for data in tqdm(dataset):
-        ori_loss = eval_loss(data).recon_loss.item()
+        ori_loss = eval_loss(data).loss.item()
         masks = mask_tensor(data, prob=0.3, num_masks=per_num)
         # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
         per_loss = []
         avg_loss = 0
         for mask in masks:
-            recon_loss = eval_loss(mask).recon_loss.item()
+            recon_loss = eval_loss(mask).loss.item()
             per_loss.append(recon_loss)
             avg_loss += recon_loss
         avg_loss = avg_loss / per_num
@@ -152,6 +153,42 @@ sns.kdeplot(eval, fill=True, color='blue', alpha=0.5)
 plt.xlabel('Peak increase of loss')
 plt.ylabel('Density')
 plt.legend(['Member', 'Non-member'])  # Add a single legend with both labels
+plt.show()
+
+# evaluate the attack performance
+y_scores = np.concatenate([train, eval], axis=0)
+y_true = np.concatenate([np.ones((100,)), np.zeros(100,)], axis=0)
+auc_score = roc_auc_score(y_true, y_scores)
+
+# calculate the ROC curve
+fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+
+# plot the ROC curve
+plt.plot(fpr, tpr, label='ROC curve (AUC = %0.2f)' % auc_score)
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.legend()
+
+# plot the no-skill line for reference
+plt.plot([0, 1], [0, 1], linestyle='--')
+
+# show the plot
+plt.show()
+
+# calculate the precision-recall curve
+precision, recall, thresholds = precision_recall_curve(y_true, y_scores)
+
+# calculate the F1-score
+fscore = (2 * precision * recall) / (precision + recall + 10e-6)  # calculate the f1 score
+f1 = fscore.max()
+
+# plot the PR curve
+plt.plot(recall, precision, label='PR curve (F1-score = %0.2f)' % f1)
+plt.xlabel('Recall')
+plt.ylabel('Precision')
+plt.legend()
+
+# show the plot
 plt.show()
 # input = {"data": eval_dataset[:25].to(device)}
 # ## Reconstructions
