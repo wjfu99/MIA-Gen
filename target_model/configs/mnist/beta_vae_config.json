@@ -1,0 +1,6 @@
+{
+    "name": "BetaVAEConfig",
+    "latent_dim": 16,
+    "reconstruction_loss": "mse",
+    "beta": 2
+}

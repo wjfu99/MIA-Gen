@@ -14,8 +14,8 @@ from tqdm import tqdm
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-last_training = sorted(os.listdir('my_model'))[-1]
-trained_model = AutoModel.load_from_folder(os.path.join('my_model', last_training, 'final_model'))
+last_training = sorted(os.listdir('target_model/my_model'))[-1]
+trained_model = AutoModel.load_from_folder(os.path.join('target_model/my_model', last_training, 'final_model'))
 trained_model = trained_model.to(device)
 
 # # create normal sampler
