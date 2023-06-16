@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import pythae
 import torch.nn.functional as F
+import logging
 from imageio import imwrite
 from pythae.models import AutoModel
 from pythae.samplers import NormalSampler
@@ -12,11 +13,16 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
 
+logger = logging.getLogger(__name__)
+console = logging.StreamHandler()
+logger.addHandler(console)
+logger.setLevel(logging.INFO)
+
+PATH = os.path.dirname(os.path.abspath(__file__))
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-last_training = sorted(os.listdir('target_model/my_model'))[-1]
-trained_model = AutoModel.load_from_folder(os.path.join('target_model/my_model', last_training, 'final_model'))
-trained_model = trained_model.to(device)
+
 
 # # create normal sampler
 # normal_samper = NormalSampler(
@@ -29,11 +35,30 @@ trained_model = trained_model.to(device)
 #     output_dir='./data/mnist/gen_data'
 # )
 
+dataset = "mnist"
+
+last_training = sorted(os.listdir(PATH + '/target_model/my_models_on_'+dataset))[-1]
+trained_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/my_models_on_'+dataset, last_training, 'final_model'))
+trained_model = trained_model.to(device)
+
+logger.info(f"\nLoading {dataset} data...\n")
+train_data = torch.Tensor(
+        np.load(os.path.join(PATH, f"target_model/data/{dataset}", "train_data.npz"))[
+            "data"
+        ]
+        / 255.0
+)
+if dataset == "mnist":
+    train_data = train_data[:-10000]
+eval_data = torch.Tensor(
+        np.load(os.path.join(PATH, f"target_model/data/{dataset}", "eval_data.npz"))["data"]
+        / 255.0
+)
+
 mnist_trainset = datasets.MNIST(root='../../data', train=True, download=True, transform=None)
 
-train_dataset = mnist_trainset.data[:-10000].reshape(-1, 1, 28, 28) / 255.
-eval_dataset = mnist_trainset.data[-10000:].reshape(-1, 1, 28, 28) / 255.
-
+train_data = mnist_trainset.data[:-10000].reshape(-1, 1, 28, 28) / 255.
+eval_data = mnist_trainset.data[-10000:].reshape(-1, 1, 28, 28) / 255.
 
 def save_img(img_tensor: torch.Tensor, dir_path: str, img_name: str):
     """Saves a data point as .png file in dir_path with img_name as name.
@@ -131,8 +156,8 @@ def eval_perturb(dataset):
     return output
 
 
-eval_losses = eval_perturb(eval_dataset[:100])
-train_losses = eval_perturb(train_dataset[:100])
+eval_losses = eval_perturb(eval_data[:100])
+train_losses = eval_perturb(train_data[:100])
 
 plt_num = 5
 for i in range(plt_num):
