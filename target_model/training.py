@@ -20,6 +20,11 @@ PATH = os.path.dirname(os.path.abspath(__file__))
 
 ap = argparse.ArgumentParser()
 
+# Automatically select the freest GPU.
+os.system('nvidia-smi -q -d Memory |grep -A5 GPU|grep Free >tmp')
+memory_available = [int(x.split()[2]) for x in open('tmp', 'r').readlines()]
+os.environ["CUDA_VISIBLE_DEVICES"] = str(np.argmax(memory_available))
+
 # Training setting
 ap.add_argument(
     "--dataset",
