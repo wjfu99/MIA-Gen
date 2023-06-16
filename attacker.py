@@ -150,7 +150,7 @@ eval = np.min(eval_losses['per_losses'] - eval_losses['ori_losses'], axis=1)
 
 sns.kdeplot(train, fill=True, color='red', alpha=0.5)
 sns.kdeplot(eval, fill=True, color='blue', alpha=0.5)
-plt.xlabel('Peak increase of loss')
+plt.xlabel('Minimum increase of loss')
 plt.ylabel('Density')
 plt.legend(['Member', 'Non-member'])  # Add a single legend with both labels
 plt.show()
