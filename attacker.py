@@ -12,6 +12,7 @@ import torchvision.datasets as datasets
 import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
+from torchvision.transforms import ToPILImage
 
 logger = logging.getLogger(__name__)
 console = logging.StreamHandler()
@@ -35,7 +36,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 #     output_dir='./data/mnist/gen_data'
 # )
 
-dataset = "mnist"
+dataset = "cifar10"
 
 last_training = sorted(os.listdir(PATH + '/target_model/my_models_on_'+dataset))[-1]
 trained_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/my_models_on_'+dataset, last_training, 'final_model'))
@@ -86,11 +87,19 @@ def save_img(img_tensor: torch.Tensor, dir_path: str, img_name: str):
 
 def show_image(image):
     # show reconstructions
-    fig, axes = plt.subplots(figsize=(10, 10))
-    axes.imshow(image.cpu().squeeze(), cmap='gray')
-    axes.axis('off')
-    plt.tight_layout(pad=0.)
-    plt.show()
+    if image.shape[0] == 1:
+        fig, axes = plt.subplots(figsize=(10, 10))
+        axes.imshow(image.cpu().squeeze(), cmap='gray')
+        axes.axis('off')
+        plt.tight_layout(pad=0.)
+        plt.show()
+    elif image.shape[0] == 3:
+        pil_image = ToPILImage()(image.cpu())
+        fig, axes = plt.subplots(figsize=(10, 10))
+        axes.imshow(pil_image)
+        axes.axis('off')
+        plt.tight_layout(pad=0.)
+        plt.show()
 
 def eval_loss(input):
     input = {"data": input.to(device)}
@@ -105,7 +114,7 @@ def mask_tensor(tensor, prob, num_masks=1):
 
     for i in range(num_masks):
         # create a tensor of binary values with the same shape as the input tensor
-        mask = torch.bernoulli(torch.full(tensor.shape, prob))
+        mask = torch.bernoulli(torch.full(tensor.shape[-2:], 1-prob))
         # apply the mask on the original tensor
         masked_tensor = tensor * mask
         masks.append(masked_tensor)
@@ -139,7 +148,7 @@ def eval_perturb(dataset):
     for data in tqdm(dataset):
         data = torch.unsqueeze(data, 0)
         ori_loss = eval_loss(data).loss.item()
-        masks = mask_tensor(data, prob=0.3, num_masks=per_num)
+        masks = mask_tensor(data, prob=0.05, num_masks=per_num)
         # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
         per_loss = []
         avg_loss = 0
