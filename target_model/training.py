@@ -74,7 +74,7 @@ ap.add_argument(
 ap.add_argument(
     "--nn",
     help="neural nets to use",
-    default="convnet",
+    default="resnet",
     choices=["default", "convnet", "resnet"],
 )
 ap.add_argument(
