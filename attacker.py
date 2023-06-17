@@ -41,6 +41,10 @@ last_training = sorted(os.listdir(PATH + '/target_model/my_models_on_'+dataset))
 trained_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/my_models_on_'+dataset, last_training, 'final_model'))
 trained_model = trained_model.to(device)
 
+# last_training = sorted(os.listdir('target_model/my_model'))[-1]
+# trained_model = AutoModel.load_from_folder(os.path.join('target_model/my_model', last_training, 'final_model'))
+# trained_model = trained_model.to(device)
+
 logger.info(f"\nLoading {dataset} data...\n")
 train_data = torch.Tensor(
         np.load(os.path.join(PATH, f"target_model/data/{dataset}", "train_data.npz"))[
@@ -55,10 +59,10 @@ eval_data = torch.Tensor(
         / 255.0
 )
 
-mnist_trainset = datasets.MNIST(root='../../data', train=True, download=True, transform=None)
-
-train_data = mnist_trainset.data[:-10000].reshape(-1, 1, 28, 28) / 255.
-eval_data = mnist_trainset.data[-10000:].reshape(-1, 1, 28, 28) / 255.
+# mnist_trainset = datasets.MNIST(root='../../data', train=True, download=True, transform=None)
+#
+# train_data = mnist_trainset.data[:-10000].reshape(-1, 1, 28, 28) / 255.
+# eval_data = mnist_trainset.data[-10000:].reshape(-1, 1, 28, 28) / 255.
 
 def save_img(img_tensor: torch.Tensor, dir_path: str, img_name: str):
     """Saves a data point as .png file in dir_path with img_name as name.
@@ -105,6 +109,8 @@ def mask_tensor(tensor, prob, num_masks=1):
         # apply the mask on the original tensor
         masked_tensor = tensor * mask
         masks.append(masked_tensor)
+    masks = torch.stack(masks, dim=0)
+    masks = torch.squeeze(masks)
     return masks
 
 def add_gaussian_noise(tensor, noise_scale, num_noised=1):
@@ -131,12 +137,14 @@ def eval_perturb(dataset):
     peak_losses = []
     per_num = 100
     for data in tqdm(dataset):
+        data = torch.unsqueeze(data, 0)
         ori_loss = eval_loss(data).loss.item()
         masks = mask_tensor(data, prob=0.3, num_masks=per_num)
         # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
         per_loss = []
         avg_loss = 0
         for mask in masks:
+            mask = torch.unsqueeze(mask, 0)
             recon_loss = eval_loss(mask).loss.item()
             per_loss.append(recon_loss)
             avg_loss += recon_loss
