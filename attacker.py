@@ -38,7 +38,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 dataset = "cifar10"
 
-last_training = sorted(os.listdir(PATH + '/target_model/my_models_on_'+dataset))[-1]
+last_training = sorted(os.listdir(PATH + '/target_model/my_models_on_'+dataset))[-2]
 trained_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/my_models_on_'+dataset, last_training, 'final_model'))
 trained_model = trained_model.to(device)
 
@@ -147,6 +147,8 @@ def eval_perturb(dataset):
     per_num = 100
     for data in tqdm(dataset):
         data = torch.unsqueeze(data, 0)
+        # show_image(data[0])
+        # show_image(eval_loss(data).recon_x.detach()[0])
         ori_loss = eval_loss(data).loss.item()
         masks = mask_tensor(data, prob=0.05, num_masks=per_num)
         # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)

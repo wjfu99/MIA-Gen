@@ -24,7 +24,7 @@ def main():
         "-o",
         "--outdir",
         type=Path,
-        default=Path(".."),
+        default=Path("./data"),
         help="the base folder in which to store the output",
     )
     parser.add_argument(
@@ -53,13 +53,13 @@ def main():
         dataset = tv_datasets[dname]
         if "celeba" in dname.lower():
             train_kwarg = {"split": "train"}
-            val_kwarg = {"split": "val"}
+            val_kwarg = {"split": "valid"}
         else:
             train_kwarg = {"train": True}
             val_kwarg = {"train": False}
 
         train_data = dataset(
-            dfolder, download=True, transform=PILToTensor(), **train_kwarg
+            dfolder, download=False, transform=PILToTensor(), **train_kwarg
         )
         train_loader = torch.utils.data.DataLoader(
             train_data, batch_size=4, shuffle=False, num_workers=args.nthreads
@@ -69,7 +69,7 @@ def main():
         for b, (x, y) in enumerate(tqdm(train_loader)):
             train_batches.append(x.clone().detach().numpy())
 
-        val_data = dataset(dfolder, download=True, transform=PILToTensor(), **val_kwarg)
+        val_data = dataset(dfolder, download=False, transform=PILToTensor(), **val_kwarg)
         val_loader = torch.utils.data.DataLoader(
             val_data, batch_size=4, shuffle=True, num_workers=args.nthreads
         )
