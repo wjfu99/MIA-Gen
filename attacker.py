@@ -36,7 +36,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 #     output_dir='./data/mnist/gen_data'
 # )
 
-dataset = "cifar10"
+dataset = "celeba"
 
 last_training = sorted(os.listdir(PATH + '/target_model/my_models_on_'+dataset))[-2]
 trained_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/my_models_on_'+dataset, last_training, 'final_model'))
@@ -45,20 +45,24 @@ trained_model = trained_model.to(device)
 # last_training = sorted(os.listdir('target_model/my_model'))[-1]
 # trained_model = AutoModel.load_from_folder(os.path.join('target_model/my_model', last_training, 'final_model'))
 # trained_model = trained_model.to(device)
-
-logger.info(f"\nLoading {dataset} data...\n")
-train_data = torch.Tensor(
-        np.load(os.path.join(PATH, f"target_model/data/{dataset}", "train_data.npz"))[
-            "data"
-        ]
-        / 255.0
-)
-if dataset == "mnist":
-    train_data = train_data[:-10000]
-eval_data = torch.Tensor(
-        np.load(os.path.join(PATH, f"target_model/data/{dataset}", "eval_data.npz"))["data"]
-        / 255.0
-)
+if dataset == "celeba":
+    celeba64_dataset = np.load("./target_model/data/celeba64/celeba64.npz")["arr_0"] / 255.0
+    train_data = torch.Tensor(celeba64_dataset[:10000])
+    eval_data = torch.Tensor(celeba64_dataset[10000:13000])
+else:
+    logger.info(f"\nLoading {dataset} data...\n")
+    train_data = torch.Tensor(
+            np.load(os.path.join(PATH, f"target_model/data/{dataset}", "train_data.npz"))[
+                "data"
+            ]
+            / 255.0
+    )
+    if dataset == "mnist":
+        train_data = train_data[:-10000]
+    eval_data = torch.Tensor(
+            np.load(os.path.join(PATH, f"target_model/data/{dataset}", "eval_data.npz"))["data"]
+            / 255.0
+    )
 
 # mnist_trainset = datasets.MNIST(root='../../data', train=True, download=True, transform=None)
 #
@@ -150,7 +154,7 @@ def eval_perturb(dataset):
         # show_image(data[0])
         # show_image(eval_loss(data).recon_x.detach()[0])
         ori_loss = eval_loss(data).loss.item()
-        masks = mask_tensor(data, prob=0.05, num_masks=per_num)
+        masks = mask_tensor(data, prob=0.005, num_masks=per_num)
         # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
         per_loss = []
         avg_loss = 0
