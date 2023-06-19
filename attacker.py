@@ -38,7 +38,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 dataset = "celeba"
 
-last_training = sorted(os.listdir(PATH + '/target_model/my_models_on_'+dataset))[-2]
+last_training = sorted(os.listdir(PATH + '/target_model/my_models_on_'+dataset))[-1]
 trained_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/my_models_on_'+dataset, last_training, 'final_model'))
 trained_model = trained_model.to(device)
 
@@ -126,6 +126,20 @@ def mask_tensor(tensor, prob, num_masks=1):
     masks = torch.squeeze(masks)
     return masks
 
+def gaussian_noise_tensor(tensor, mean=0.0, std=0.1, num_noise=1):
+    noises = []
+    for i in range(num_noise):
+        # create a tensor of gaussian noise with the same shape as the input tensor
+        noise = torch.randn(tensor.shape) * std + mean
+        # add the noise to the original tensor
+        noisy_tensor = tensor + noise
+        # make sure the pixel values are within [0, 1]
+        noisy_tensor = torch.clamp(noisy_tensor, 0.0, 1.0)
+        noises.append(noisy_tensor)
+    noises = torch.stack(noises, dim=0)
+    noises = torch.squeeze(noises)
+    return noises
+
 def add_gaussian_noise(tensor, noise_scale, num_noised=1):
     noised_tensors = []
     for i in range(num_noised):
@@ -154,7 +168,8 @@ def eval_perturb(dataset):
         # show_image(data[0])
         # show_image(eval_loss(data).recon_x.detach()[0])
         ori_loss = eval_loss(data).loss.item()
-        masks = mask_tensor(data, prob=0.005, num_masks=per_num)
+        # masks = mask_tensor(data, prob=0.05, num_masks=per_num)
+        masks = gaussian_noise_tensor(data, 0, 0.1, per_num)
         # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
         per_loss = []
         avg_loss = 0
@@ -168,7 +183,7 @@ def eval_perturb(dataset):
         per_losses.append(per_loss)
         losses.append(avg_loss)
         var_losses.append(avg_loss-ori_loss)
-        peak_losses.append(np.max(per_loss) - ori_loss)
+        peak_losses.append(np.min(per_loss) - ori_loss)
     output = {
         'per_losses': np.array(per_losses),
         'ori_losses': np.array(ori_losses),
