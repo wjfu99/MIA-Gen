@@ -194,8 +194,8 @@ def eval_perturb(dataset):
     return output
 
 
-eval_losses = eval_perturb(eval_data[:100])
-train_losses = eval_perturb(train_data[:100])
+eval_losses = eval_perturb(eval_data[:1000])
+train_losses = eval_perturb(train_data[5000:6000])
 
 plt_num = 5
 for i in range(plt_num):
@@ -212,8 +212,8 @@ plt.show()
 # eval = np.min(eval_losses['per_losses'] - eval_losses['ori_losses'], axis=1)
 # train = np.min(train_losses['per_losses'] - train_losses['ori_losses'][:, None], axis=1)
 # eval = np.min(eval_losses['per_losses'] - eval_losses['ori_losses'][:, None], axis=1)
-train = np.mean(train_losses['per_losses'] - train_losses['ori_losses'][:, None], axis=1)/train_losses['ori_losses']
-eval = np.mean(eval_losses['per_losses'] - eval_losses['ori_losses'][:, None], axis=1)/eval_losses['ori_losses']
+train = np.min(train_losses['per_losses'] - train_losses['ori_losses'][:, None], axis=1)/train_losses['ori_losses']
+eval = np.min(eval_losses['per_losses'] - eval_losses['ori_losses'][:, None], axis=1)/eval_losses['ori_losses']
 
 sns.kdeplot(train, fill=True, color='red', alpha=0.5)
 sns.kdeplot(eval, fill=True, color='blue', alpha=0.5)
