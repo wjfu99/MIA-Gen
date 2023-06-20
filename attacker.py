@@ -38,9 +38,13 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 dataset = "celeba"
 
-last_training = sorted(os.listdir(PATH + '/target_model/my_models_on_'+dataset))[-1]
-trained_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/my_models_on_'+dataset, last_training, 'final_model'))
+target_model = sorted(os.listdir(PATH + '/target_model/my_models_on_'+dataset))[-2]
+trained_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/my_models_on_'+dataset, target_model, 'final_model'))
 trained_model = trained_model.to(device)
+
+reference_model = sorted(os.listdir(PATH + '/target_model/my_models_on_'+dataset))[-1]
+reference_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/my_models_on_'+dataset, reference_model, 'final_model'))
+reference_model = reference_model.to(device)
 
 # last_training = sorted(os.listdir('target_model/my_model'))[-1]
 # trained_model = AutoModel.load_from_folder(os.path.join('target_model/my_model', last_training, 'final_model'))
@@ -105,9 +109,12 @@ def show_image(image):
         plt.tight_layout(pad=0.)
         plt.show()
 
-def eval_loss(input):
+def eval_loss(input, refer=False):
     input = {"data": input.to(device)}
-    output = trained_model(input)
+    if not refer:
+        output = trained_model(input)
+    else:
+        output = reference_model(input)
     recon_loss = output.recon_loss
     reg_loss = output.reg_loss
     loss = output.loss
@@ -150,7 +157,7 @@ def add_gaussian_noise(tensor, noise_scale, num_noised=1):
         noised_tensors.append(noised_tensor)
     return noised_tensors
 
-def eval_perturb(dataset):
+def eval_perturb(dataset, refer=False):
     """
     Evaluate the loss of the perturbed data
 
@@ -167,7 +174,7 @@ def eval_perturb(dataset):
         data = torch.unsqueeze(data, 0)
         # show_image(data[0])
         # show_image(eval_loss(data).recon_x.detach()[0])
-        ori_loss = eval_loss(data).loss.item()
+        ori_loss = eval_loss(data, refer).loss.item()
         # masks = mask_tensor(data, prob=0.05, num_masks=per_num)
         masks = gaussian_noise_tensor(data, 0, 0.1, per_num)
         # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
@@ -175,7 +182,7 @@ def eval_perturb(dataset):
         avg_loss = 0
         for mask in masks:
             mask = torch.unsqueeze(mask, 0)
-            recon_loss = eval_loss(mask).loss.item()
+            recon_loss = eval_loss(mask, refer).loss.item()
             per_loss.append(recon_loss)
             avg_loss += recon_loss
         avg_loss = avg_loss / per_num
@@ -197,6 +204,9 @@ def eval_perturb(dataset):
 eval_losses = eval_perturb(eval_data[:1000])
 train_losses = eval_perturb(train_data[5000:6000])
 
+ref_eval_losses = eval_perturb(eval_data[:1000], True)
+ref_train_losses = eval_perturb(train_data[5000:6000], True)
+
 plt_num = 5
 for i in range(plt_num):
     train = train_losses['per_losses'][i] - train_losses['ori_losses'][i]
@@ -215,8 +225,11 @@ plt.show()
 train = np.min(train_losses['per_losses'] - train_losses['ori_losses'][:, None], axis=1)/train_losses['ori_losses']
 eval = np.min(eval_losses['per_losses'] - eval_losses['ori_losses'][:, None], axis=1)/eval_losses['ori_losses']
 
-sns.kdeplot(train, fill=True, color='red', alpha=0.5)
-sns.kdeplot(eval, fill=True, color='blue', alpha=0.5)
+ref_train = np.min(ref_train_losses['per_losses'] - ref_train_losses['ori_losses'][:, None], axis=1)/ref_train_losses['ori_losses']
+ref_eval = np.min(ref_eval_losses['per_losses'] - ref_eval_losses['ori_losses'][:, None], axis=1)/ref_eval_losses['ori_losses']
+
+sns.kdeplot(train-ref_train, fill=True, color='red', alpha=0.5)
+sns.kdeplot(eval-ref_eval, fill=True, color='blue', alpha=0.5)
 plt.xlabel('Minimum increase of loss')
 plt.ylabel('Density')
 plt.legend(['Member', 'Non-member'])  # Add a single legend with both labels
