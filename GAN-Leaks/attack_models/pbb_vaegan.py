@@ -15,6 +15,7 @@ from scipy.optimize import minimize
 
 ### import victim models
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../gan_models/vaegan'))
+from pythae.models import AutoModel
 # from train import *
 
 ### Hyperparameters
@@ -66,7 +67,7 @@ def check_args(args):
     :return:
     '''
     ## load dir
-    assert os.path.exists(args.gan_model_dir)
+    # assert os.path.exists(args.gan_model_dir)
 
     ## set up save_dir
     save_dir = os.path.join(os.path.dirname(__file__), 'results/pbb', args.exp_name)
@@ -118,7 +119,7 @@ class Loss(torch.nn.Module):
             self.loss_l2_fn = lambda x, y: torch.mean((y - x) ** 2, dim=[1, 2, 3])
 
     def forward(self, z, x_gt):
-        self.x_hat = self.netG(z)
+        self.x_hat = self.netG.decoder(z)['reconstruction'].detach()
         self.loss_lpips = self.loss_lpips_fn(self.x_hat, x_gt)
         self.loss_l2 = self.loss_l2_fn(self.x_hat, x_gt)
         self.vec_loss = LAMBDA2 * self.loss_lpips + self.loss_l2
@@ -150,7 +151,7 @@ def optimize_z_bb(loss_model,
 
         try:
             x_batch = query_imgs[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
-            x_gt = torch.from_numpy(x_batch).permute(0, 3, 1, 2).cuda()
+            x_gt = torch.from_numpy(x_batch).permute(0, 3, 1, 2).cuda().float()
 
             if os.path.exists(save_dir_batch):
                 pass
@@ -161,7 +162,9 @@ def optimize_z_bb(loss_model,
                 loss_progress = []
 
                 def objective(z):
-                    z_ = torch.from_numpy(z).float().view(1, -1, 1, 1).cuda()
+                    # z_ = torch.from_numpy(z).float().view(1, -1, 1, 1).cuda()
+                    z_ = torch.from_numpy(z).cuda().float()
+                    z_ = z_.unsqueeze(0)
                     vec_loss = loss_model.forward(z_, x_gt)
                     vec_loss_np = vec_loss.detach().cpu().numpy()
                     loss_progress.append(vec_loss_np)
@@ -215,10 +218,17 @@ def main():
     BATCH_SIZE = args.batch_size
 
     ### set up Generator
-    network_path = os.path.join(load_dir, 'netG.pt')
-    netG = torch.load(network_path).cuda()
+    PATH = os.path.dirname(os.path.abspath(__file__))
+    dataset = "celeba"
+    target_model = sorted(os.listdir(os.path.join(PATH, '../../target_model/my_models_on_' + dataset)))[-2]
+    trained_model = AutoModel.load_from_folder(
+    os.path.join(PATH, '../../target_model/my_models_on_' + dataset, target_model, 'final_model'))
+    trained_model = trained_model.cuda()
+    netG = trained_model
+    # network_path = os.path.join(load_dir, 'netG.pt')
+    # netG = torch.load(network_path).cuda()
     netG.eval()
-    Z_DIM = netG.deconv1.module.in_channels
+    Z_DIM = trained_model.model_config.latent_dim
     resolution = args.resolution
 
     ### define loss
@@ -248,8 +258,13 @@ def main():
         raise NotImplementedError
 
     ### positive ###
-    pos_data_paths = get_filepaths_from_dir(args.pos_data_dir, ext='png')[: args.data_num]
-    pos_query_imgs = np.array([read_image(f, resolution) for f in pos_data_paths])
+    # pos_data_paths = get_filepaths_from_dir(args.pos_data_dir, ext='png')[: args.data_num]
+    # pos_query_imgs = np.array([read_image(f, resolution) for f in pos_data_paths])
+
+    celeba64_dataset = np.load(os.path.join(PATH, "../../target_model/data/celeba64/celeba64.npz"))["arr_0"] / 255.0
+    pos_query_imgs = np.transpose(celeba64_dataset[:100], (0, 2, 3, 1))
+    neg_query_imgs = np.transpose(celeba64_dataset[10000:10100], (0, 2, 3, 1))
+
     query_loss, query_z, query_xhat = optimize_z_bb(loss_model,
                                                     init_val_pos,
                                                     pos_query_imgs,
@@ -258,8 +273,8 @@ def main():
     save_files(save_dir, ['pos_loss'], [query_loss])
 
     ### negative ###
-    neg_data_paths = get_filepaths_from_dir(args.neg_data_dir, ext='png')[: args.data_num]
-    neg_query_imgs = np.array([read_image(f, resolution) for f in neg_data_paths])
+    # neg_data_paths = get_filepaths_from_dir(args.neg_data_dir, ext='png')[: args.data_num]
+    # neg_query_imgs = np.array([read_image(f, resolution) for f in neg_data_paths])
     query_loss, query_z, query_xhat = optimize_z_bb(loss_model,
                                                     init_val_neg,
                                                     neg_query_imgs,
