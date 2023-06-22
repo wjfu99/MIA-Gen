@@ -6,8 +6,9 @@ import argparse
 from tqdm import tqdm
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'tools'))
-from utils import *
+from tools.utils import *
 from sklearn.neighbors import NearestNeighbors
+from pythae.models import AutoModel
 
 ### Hyperparameters
 K = 5
@@ -21,14 +22,14 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('--exp_name', '-name', type=str, required=True,
                         help='the name of the current experiment (used to set up the save_dir)')
-    parser.add_argument('--gan_model_dir', '-gdir', type=str, required=True,
-                        help='directory for the Victim GAN model (save the generated.npz file)')
-    parser.add_argument('--pos_data_dir', '-posdir', type=str,
-                        help='the directory for the positive (training) query images set')
-    parser.add_argument('--neg_data_dir', '-negdir', type=str,
-                        help='the directory for the negative (testing) query images set')
-    parser.add_argument('--data_num', '-dnum', type=int, default=20000,
-                        help='the number of query images to be considered')
+    # parser.add_argument('--gan_model_dir', '-gdir', type=str, required=True,
+    #                     help='directory for the Victim GAN model (save the generated.npz file)')
+    # parser.add_argument('--pos_data_dir', '-posdir', type=str,
+    #                     help='the directory for the positive (training) query images set')
+    # parser.add_argument('--neg_data_dir', '-negdir', type=str,
+    #                     help='the directory for the negative (testing) query images set')
+    # parser.add_argument('--data_num', '-dnum', type=int, default=20000,
+    #                     help='the number of query images to be considered')
     parser.add_argument('--resolution', '-resolution', type=int, default=64,
                         help='generated image resolution')
     return parser.parse_args()
@@ -41,7 +42,7 @@ def check_args(args):
     :return:
     '''
     ## load dir
-    assert os.path.exists(args.gan_model_dir)
+    # assert os.path.exists(args.gan_model_dir)
 
     ## set up save_dir
     save_dir = os.path.join(os.path.dirname(__file__), 'results/fbb', args.exp_name)
@@ -53,7 +54,7 @@ def check_args(args):
             f.writelines(k + ":" + str(v) + "\n")
             print(k + ":" + str(v))
     pickle.dump(vars(args), open(os.path.join(save_dir, 'params.pkl'), 'wb'), protocol=2)
-    return args, save_dir, args.gan_model_dir
+    return args, save_dir
 
 
 #############################################################################################################
@@ -103,25 +104,52 @@ def find_pred_z(gen_z, idx):
 # main
 #############################################################################################################
 def main():
-    args, save_dir, load_dir = check_args(parse_arguments())
+    args, save_dir = check_args(parse_arguments())
     resolution = args.resolution
 
     ### load generated samples
-    generate = np.load(os.path.join(load_dir, 'generated.npz'))
-    gen_imgs = generate['img_r01']
-    gen_z = generate['noise']
+
+    PATH = os.path.dirname(os.path.abspath(__file__))
+    dataset = "celeba"
+    target_model = sorted(os.listdir(os.path.join(PATH, '../../target_model/my_models_on_' + dataset)))[-2]
+    trained_model = AutoModel.load_from_folder(
+    os.path.join(PATH, '../../target_model/my_models_on_' + dataset, target_model, 'final_model'))
+    trained_model = trained_model.cuda()
+    trained_model.eval()
+
+    import torch
+    gen_imgs = []
+    gen_z = []
+    for _ in tqdm(range(10000)):
+        z = torch.rand(64).cuda()
+        z = z.unsqueeze(0)
+        x_gen = trained_model.decoder(z)['reconstruction'].detach()
+        gen_imgs.append(x_gen.cpu().numpy())
+        gen_z.append(z.cpu().numpy())
+    gen_imgs = np.array(gen_imgs)
     gen_feature = np.reshape(gen_imgs, [len(gen_imgs), -1])
     gen_feature = 2. * gen_feature - 1.
 
-    ### load query images
-    pos_data_paths = get_filepaths_from_dir(args.pos_data_dir, ext='png')[: args.data_num]
-    pos_query_imgs = np.array([read_image(f, resolution) for f in pos_data_paths])
+    # generate = np.load(os.path.join(load_dir, 'generated.npz'))
+    # gen_imgs = generate['img_r01']
+    # gen_z = generate['noise']
+    # gen_feature = np.reshape(gen_imgs, [len(gen_imgs), -1])
+    # gen_feature = 2. * gen_feature - 1.
 
-    neg_data_paths = get_filepaths_from_dir(args.neg_data_dir, ext='png')[: args.data_num]
-    neg_query_imgs = np.array([read_image(f, resolution) for f in neg_data_paths])
+    ### load query images
+    PATH = os.path.dirname(os.path.abspath(__file__))
+    celeba64_dataset = np.load(os.path.join(PATH, "../../target_model/data/celeba64/celeba64.npz"))["arr_0"] / 255.0
+    pos_query_imgs = celeba64_dataset[:100]
+    neg_query_imgs = celeba64_dataset[10000:10100]
+
+    # pos_data_paths = get_filepaths_from_dir(args.pos_data_dir, ext='png')[: args.data_num]
+    # pos_query_imgs = np.array([read_image(f, resolution) for f in pos_data_paths])
+    #
+    # neg_data_paths = get_filepaths_from_dir(args.neg_data_dir, ext='png')[: args.data_num]
+    # neg_query_imgs = np.array([read_image(f, resolution) for f in neg_data_paths])
 
     ### nearest neighbor search
-    nn_obj = NearestNeighbors(K, n_jobs=16)
+    nn_obj = NearestNeighbors(n_neighbors=K, n_jobs=16)
     nn_obj.fit(gen_feature)
 
     ### positive query
