@@ -212,6 +212,11 @@ def optimize_z_bb(loss_model,
 # main
 #############################################################################################################
 def main():
+    # Automatically select the freest GPU.
+    os.system('nvidia-smi -q -d Memory |grep -A5 GPU|grep Free >tmp')
+    memory_available = [int(x.split()[2]) for x in open('tmp', 'r').readlines()]
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(np.argmax(memory_available))
+
     args, save_dir, load_dir = check_args(parse_arguments())
 
     global BATCH_SIZE
