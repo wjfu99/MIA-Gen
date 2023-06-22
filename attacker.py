@@ -115,9 +115,6 @@ def eval_loss(input, refer=False):
         output = trained_model(input)
     else:
         output = reference_model(input)
-    recon_loss = output.recon_loss
-    reg_loss = output.reg_loss
-    loss = output.loss
     return output
 
 def mask_tensor(tensor, prob, num_masks=1):
