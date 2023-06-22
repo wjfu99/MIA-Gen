@@ -239,8 +239,8 @@ def main(args):
     try:
         if args.dataset == "celeba":
             celeba64_dataset = np.load("./data/celeba64/celeba64.npz")["arr_0"] / 255.0
-            train_data = celeba64_dataset[13000:22000]
-            eval_data = celeba64_dataset[10000:13000]
+            train_data = celeba64_dataset[:90000]
+            eval_data = celeba64_dataset[90000:100000]
         else:
             logger.info(f"\nLoading {args.dataset} data...\n")
             train_data = (
