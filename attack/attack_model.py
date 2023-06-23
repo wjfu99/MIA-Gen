@@ -152,6 +152,7 @@ class AttackModel:
         )
         return output
     def data_prepare(self, path="attack/attack_data"):
+        logging.info("Preparing data...")
         data_path = os.path.join(PATH, path)
         target_model = self.shadow_model
         mem_data = self.datasets['shadow']['mem']
@@ -159,13 +160,18 @@ class AttackModel:
         mem_path = os.path.join(data_path, "mem_feat.pkl")
         nonmem_path = os.path.join(data_path, "nonmen_feat.pkl")
         if not utils.check_files_exist(mem_path, nonmem_path):
+            logging.info("Generating feature vectors for memory data...")
             mem_feat = self.eval_perturb(target_model, mem_data)
-            nonmen_feat = self.eval_perturb(target_model, nonmem_data)
+            logging.info("Generating feature vectors for non-memory data...")
+            nonmem_feat = self.eval_perturb(target_model, nonmem_data)
+            logging.info("Saving feature vectors...")
             utils.save_dict_to_npz(mem_feat, mem_path)
-            utils.save_dict_to_npz(nonmen_feat, mem_path)
+            utils.save_dict_to_npz(nonmem_feat, nonmem_path)
         else:
+            logging.info("Loading feature vectors...")
             mem_feat = utils.load_dict_from_npz(mem_path)
             nonmen_feat = utils.load_dict_from_npz(nonmem_path)
+        logging.info("Data preparation complete.")
         return mem_feat, nonmen_feat
 
     def attack_model_training(self, epoch_num=100):
