@@ -1,3 +1,4 @@
+import logging
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -5,6 +6,14 @@ from torch.nn import functional as F
 import sklearn.metrics as metrics
 import numpy as np
 from tqdm import tqdm
+
+logger = logging.getLogger(__name__)
+console = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+console.setFormatter(formatter)
+logger.addHandler(console)
+logger.setLevel(logging.INFO)
+
 
 class MLAttckerModel(nn.Module):
     def __init__(self, input_size, hidden_size=128, output_size=3):
@@ -38,14 +47,53 @@ class AttackModel:
         self.kind = kind
         if shadow_model is not None and kind == "ml":
             self.shadow_model = shadow_model
-            self.ml_model = MLAttckerModel()
-            self.ml_model_training = False
+            self.is_model_training = False
         if reference_model is not None:
             self.reference_model = reference_model
+    @staticmethod
+    def output_reformat(output_dict):
+        for key in output_dict.keys():
+            output_dict[key] = output_dict[key].cpu().detach().numpy()
+        return output_dict
+    @staticmethod
+    def loss_function(self, recon_x, x, mu, log_var, z):
 
-    def eval_loss(self, model, input, refer=False):
-        input = {"data": input.cuda()}
-        output = model(input)
+        if self.model_config.reconstruction_loss == "mse":
+
+            recon_loss = F.mse_loss(
+                recon_x.reshape(x.shape[0], -1),
+                x.reshape(x.shape[0], -1),
+                reduction="none",
+            ).sum(dim=-1)
+
+        elif self.model_config.reconstruction_loss == "bce":
+
+            recon_loss = F.binary_cross_entropy(
+                recon_x.reshape(x.shape[0], -1),
+                x.reshape(x.shape[0], -1),
+                reduction="none",
+            ).sum(dim=-1)
+
+        KLD = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=-1)
+
+        return (recon_loss + KLD), recon_loss, KLD
+
+    def target_model_revision(self, model):
+        ori_class = model.__class__
+        ori_class.loss_function = self.loss_function
+
+    def generative_model_eval(self, model, input, batch_size=100):
+        input = input.cuda()
+        num_inputs = input.shape[0]
+        outputs = []
+        model.eval()
+
+        for i in range(0, num_inputs, batch_size):
+            input_batch = input[i:i + batch_size]
+            input_dict = {"data": input_batch}
+            output_batch = self.output_reformat(model(input_dict))
+            outputs.append(output_batch)
+        output = torch.cat(outputs, dim=0)
         return output
 
     def eval_perturb(self, model, dataset):
@@ -61,11 +109,15 @@ class AttackModel:
         per_losses = []
         peak_losses = []
         per_num = 100
+        model.eval()
+        # revising some original methods of target model.
+        self.target_model_revision(model)
+        ori_losses = self.generative_model_eval(model, dataset).loss
         for data in tqdm(dataset):
             data = torch.unsqueeze(data, 0)
             # show_image(data[0])
             # show_image(eval_loss(data).recon_x.detach()[0])
-            ori_loss = self.eval_loss(model, data).loss.item()
+            ori_loss = self.generative_model_eval(model, data).loss.item()
             # masks = mask_tensor(data, prob=0.05, num_masks=per_num)
             masks = self.gaussian_noise_tensor(data, 0, 0.1, per_num)
             # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
@@ -73,7 +125,7 @@ class AttackModel:
             avg_loss = 0
             for mask in masks:
                 mask = torch.unsqueeze(mask, 0)
-                recon_loss = self.eval_loss(model, mask).loss.item()
+                recon_loss = self.generative_model_eval(model, mask).loss.item()
                 per_loss.append(recon_loss)
                 avg_loss += recon_loss
             avg_loss = avg_loss / per_num
@@ -91,20 +143,20 @@ class AttackModel:
         )
         return output
 
-    def training(self, epoch_num):
+    def attack_model_training(self, epoch_num=100):
         target_model = self.shadow_model
-        attack_model = self.ml_model
-        mem_data = self.datasets['shadow_mem']
-        nonmem_data = self.datasets['shadow_nonmen']
+
+        mem_data = self.datasets['shadow']['mem']
+        nonmem_data = self.datasets['shadow']['nonmem']
         mem_dist = self.eval_perturb(target_model, mem_data).per_losses
         nonmen_dist = self.eval_perturb(target_model, nonmem_data).per_losses
         ground_truth = torch.concat([torch.zeros(nonmem_data[0]), torch.ones(mem_data.shape[0])]).cuda()
+        feature_dim = mem_dist.shape[-1]
+        attack_model = MLAttckerModel(feature_dim)
         optimizer = optim.Adam(attack_model.parameters(), lr=0.001, weight_decay=0.0005)
         # schedular = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[])
         criterion = torch.nn.CrossEntropyLoss()
         print_freq = 10
-        feature_dim = mem_dist.shape[-1]
-        ml_model = MLAttckerModel(feature_dim)
         for i in range(epoch_num):
             for phase in ['train', 'val']:
                 if phase == 'train':
@@ -118,10 +170,10 @@ class AttackModel:
                 if phase == 'train':
                     loss.backward()
                     optimizer.step()
-        self.ml_model_training = True
+        self.is_model_training = True
     def conduct_attack(self, target_samples):
         if self.kind == 'ml':
-            assert self.ml_model_training is True
+            assert self.is_model_training is True
             dist = self.eval_perturb(self.target_model, target_samples).pre_losses
             predict = self.ml_model(dist)
     def eval_attack(self, predict, true):

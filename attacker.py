@@ -13,9 +13,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
 from torchvision.transforms import ToPILImage
+from attack.attack_model import AttackModel
 
 logger = logging.getLogger(__name__)
 console = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+console.setFormatter(formatter)
 logger.addHandler(console)
 logger.setLevel(logging.INFO)
 
@@ -38,21 +41,38 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 dataset = "celeba"
 
-target_model = sorted(os.listdir(PATH + '/target_model/my_models_on_'+dataset))[-2]
-trained_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/my_models_on_'+dataset, target_model, 'final_model'))
+target_model = sorted(os.listdir(PATH + '/target_model/target_models_on_'+dataset))[-1]
+trained_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/target_models_on_'+dataset, target_model, 'final_model'))
 trained_model = trained_model.to(device)
 
-reference_model = sorted(os.listdir(PATH + '/target_model/my_models_on_'+dataset))[-1]
-reference_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/my_models_on_'+dataset, reference_model, 'final_model'))
+reference_model = sorted(os.listdir(PATH + '/target_model/reference_models_on_'+dataset))[-1]
+reference_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/reference_models_on_'+dataset, reference_model, 'final_model'))
 reference_model = reference_model.to(device)
 
+shadow_model = sorted(os.listdir(PATH + '/target_model/shadow_models_on_'+dataset))[-1]
+shadow_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/shadow_models_on_'+dataset, shadow_model, 'final_model'))
+shadow_model = shadow_model.to(device)
+logger.info("Successfully loaded models!\n")
 # last_training = sorted(os.listdir('target_model/my_model'))[-1]
 # trained_model = AutoModel.load_from_folder(os.path.join('target_model/my_model', last_training, 'final_model'))
 # trained_model = trained_model.to(device)
 if dataset == "celeba":
     celeba64_dataset = np.load("./target_model/data/celeba64/celeba64.npz")["arr_0"] / 255.0
-    train_data = torch.Tensor(celeba64_dataset[:10000])
-    eval_data = torch.Tensor(celeba64_dataset[10000:13000])
+    datasets = dict(
+        traget=dict(
+            mem=torch.Tensor(celeba64_dataset[:90000]),
+            nonmem=torch.Tensor(celeba64_dataset[90000:100000])
+        ),
+        shadow=dict(
+            mem=torch.Tensor(celeba64_dataset[100000:145000]),
+            nonmem=torch.Tensor(celeba64_dataset[145000:150000])
+        ),
+        reference=dict(
+            mem=torch.Tensor(celeba64_dataset[150000:195000]),
+            nonmem=torch.Tensor(celeba64_dataset[195000:200000])
+        )
+    )
+    logger.info("Successfully loaded datasets!\n")
 else:
     logger.info(f"\nLoading {dataset} data...\n")
     train_data = torch.Tensor(
@@ -68,6 +88,9 @@ else:
             / 255.0
     )
 
+attack_model = AttackModel(target_model, datasets, reference_model, shadow_model)
+attack_model.attack_model_training()
+attack_model.conduct_attack()
 # mnist_trainset = datasets.MNIST(root='../../data', train=True, download=True, transform=None)
 #
 # train_data = mnist_trainset.data[:-10000].reshape(-1, 1, 28, 28) / 255.
