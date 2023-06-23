@@ -82,18 +82,18 @@ class AttackModel:
         ori_class = model.__class__
         ori_class.loss_function = self.loss_function
 
-    def generative_model_eval(self, model, input, batch_size=100):
+    def generative_model_eval(self, model, input, batch_size=1000):
         input = input.cuda()
         num_inputs = input.shape[0]
         outputs = []
         model.eval()
 
-        for i in range(0, num_inputs, batch_size):
+        for i in tqdm(range(0, num_inputs, batch_size)):
             input_batch = input[i:i + batch_size]
             input_dict = {"data": input_batch}
-            output_batch = self.output_reformat(model(input_dict))
+            output_batch = self.output_reformat(model(input_dict)).loss
             outputs.append(output_batch)
-        output = torch.cat(outputs, dim=0)
+        output = np.concatenate(outputs, axis=0)
         return output
 
     def eval_perturb(self, model, dataset):
@@ -112,7 +112,7 @@ class AttackModel:
         model.eval()
         # revising some original methods of target model.
         self.target_model_revision(model)
-        ori_losses = self.generative_model_eval(model, dataset).loss
+        ori_losses = self.generative_model_eval(model, dataset)
         for data in tqdm(dataset):
             data = torch.unsqueeze(data, 0)
             # show_image(data[0])
