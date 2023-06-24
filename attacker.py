@@ -23,7 +23,10 @@ logger.addHandler(console)
 logger.setLevel(logging.INFO)
 
 PATH = os.path.dirname(os.path.abspath(__file__))
-
+# Automatically select the freest GPU.
+os.system('nvidia-smi -q -d Memory |grep -A5 GPU|grep Free >tmp')
+memory_available = [int(x.split()[2]) for x in open('tmp', 'r').readlines()]
+os.environ["CUDA_VISIBLE_DEVICES"] = str(np.argmax(memory_available))
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
@@ -52,7 +55,7 @@ reference_model = reference_model.to(device)
 shadow_model = sorted(os.listdir(PATH + '/target_model/shadow_models_on_'+dataset))[-1]
 shadow_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/shadow_models_on_'+dataset, shadow_model, 'final_model'))
 shadow_model = shadow_model.to(device)
-logger.info("Successfully loaded models!\n")
+logger.info("Successfully loaded models!")
 # last_training = sorted(os.listdir('target_model/my_model'))[-1]
 # trained_model = AutoModel.load_from_folder(os.path.join('target_model/my_model', last_training, 'final_model'))
 # trained_model = trained_model.to(device)
@@ -72,7 +75,7 @@ if dataset == "celeba":
             nonmem=torch.Tensor(celeba64_dataset[195000:200000])
         )
     )
-    logger.info("Successfully loaded datasets!\n")
+    logger.info("Successfully loaded datasets!")
 else:
     logger.info(f"\nLoading {dataset} data...\n")
     train_data = torch.Tensor(
