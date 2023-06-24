@@ -9,6 +9,7 @@ import numpy as np
 import pickle as pkl
 from tqdm import tqdm
 from attack import utils
+from attack.utils import Dict
 
 logger = logging.getLogger(__name__)
 console = logging.StreamHandler()
@@ -32,18 +33,7 @@ class MLAttckerModel(nn.Module):
         output = torch.softmax(self.output_layer(x), dim=1)
         return output
 
-class OutputDict(dict):
-    def __getattr__(self, name):
-        if name in self:
-            return  self[name]
-        raise AttributeError(f"'OutputDict' object has no attribute '{name}'")
-    def __setattr__(self, name, value):
-        super().__setitem__(name, value)
-        super().__setattr__(name, value)
 
-    def __setitem__(self, key, value):
-        super().__setitem__(key, value)
-        super().__setattr__(key, value)
 class AttackModel:
     def __init__(self, target_model, datasets, reference_model=None, shadow_model=None, kind="ml"):
         self.target_model = target_model
@@ -119,7 +109,7 @@ class AttackModel:
         for _ in tqdm(range(per_num)):
             per_dataset = self.gaussian_noise_tensor(dataset, 0, 0.1)
             per_loss = self.generative_model_eval(model, per_dataset)
-            per_losses.append(per_loss)
+            per_losses.append(per_loss[:, None])
         per_losses = np.concatenate(per_losses, axis=1)
         var_losses = per_losses - ori_losses[:, None]
         # for data in tqdm(dataset):
@@ -143,36 +133,37 @@ class AttackModel:
         #     losses.append(avg_loss)
         #     var_losses.append(avg_loss - ori_loss)
         #     peak_losses.append(np.min(per_loss) - ori_loss)
-        output = OutputDict(
-            per_losses=np.array(per_losses),
-            ori_losses=np.array(ori_losses),
-            var_losses=np.array(var_losses),
+        output = Dict(
+            per_losses=per_losses,
+            ori_losses=ori_losses,
+            var_losses=var_losses,
             # losses=np.array(losses),
             # peak_losses=np.array(peak_losses)
         )
         return output
-    def data_prepare(self, path="attack/attack_data"):
-        logging.info("Preparing data...")
+
+    def data_prepare(self, path="attack/attack_data", type="shadow"):
+        logger.info("Preparing data...")
         data_path = os.path.join(PATH, path)
-        target_model = self.shadow_model
-        mem_data = self.datasets['shadow']['mem']
-        nonmem_data = self.datasets['shadow']['nonmem']
-        mem_path = os.path.join(data_path, "mem_feat.pkl")
-        nonmem_path = os.path.join(data_path, "nonmen_feat.pkl")
+        target_model = getattr(self, type+"_model")
+        mem_data = self.datasets[type]['mem']
+        nonmem_data = self.datasets[type]['nonmem']
+        mem_path = os.path.join(data_path, type, "mem_feat.pkl")
+        nonmem_path = os.path.join(data_path, type,"nonmen_feat.pkl")
         if not utils.check_files_exist(mem_path, nonmem_path):
-            logging.info("Generating feature vectors for memory data...")
+            logger.info("Generating feature vectors for memory data...")
             mem_feat = self.eval_perturb(target_model, mem_data)
-            logging.info("Generating feature vectors for non-memory data...")
+            logger.info("Generating feature vectors for non-memory data...")
             nonmem_feat = self.eval_perturb(target_model, nonmem_data)
-            logging.info("Saving feature vectors...")
+            logger.info("Saving feature vectors...")
             utils.save_dict_to_npz(mem_feat, mem_path)
             utils.save_dict_to_npz(nonmem_feat, nonmem_path)
         else:
-            logging.info("Loading feature vectors...")
+            logger.info("Loading feature vectors...")
             mem_feat = utils.load_dict_from_npz(mem_path)
-            nonmen_feat = utils.load_dict_from_npz(nonmem_path)
-        logging.info("Data preparation complete.")
-        return mem_feat, nonmen_feat
+            nonmem_feat = utils.load_dict_from_npz(nonmem_path)
+        logger.info("Data preparation complete.")
+        return mem_feat, nonmem_feat
 
     def attack_model_training(self, epoch_num=100):
         # target_model = self.shadow_model
@@ -181,11 +172,13 @@ class AttackModel:
         # nonmem_data = self.datasets['shadow']['nonmem']
         # mem_dist = self.eval_perturb(target_model, mem_data).per_losses
         # nonmen_dist = self.eval_perturb(target_model, nonmem_data).per_losses
-        mem_feat, nonmen_feat = self.data_prepare()
-        mem_feat, nonmen_feat = mem_feat.var_losses, nonmen_feat.var_losses
-        ground_truth = torch.concat([torch.zeros(mem_feat[0]), torch.ones(nonmen_feat.shape[0])]).cuda()
+        mem_feat, nonmem_feat = self.data_prepare()
+        mem_feat, nonmem_feat = mem_feat.var_losses, nonmem_feat.var_losses
+        mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_feat, nonmem_feat)
+        feat = np.concatenate(mem_feat, nonmem_feat)
+        ground_truth = torch.cat([torch.zeros(mem_feat.shape[0]), torch.ones(nonmem_feat.shape[0])]).cuda()
         feature_dim = mem_feat.shape[-1]
-        attack_model = MLAttckerModel(feature_dim)
+        attack_model = MLAttckerModel(feature_dim).cuda()
         optimizer = optim.Adam(attack_model.parameters(), lr=0.001, weight_decay=0.0005)
         # schedular = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[])
         criterion = torch.nn.CrossEntropyLoss()
@@ -194,16 +187,20 @@ class AttackModel:
             for phase in ['train', 'val']:
                 if phase == 'train':
                     attack_model.train()
-                    predict = attack_model(mem_feat)
+                    predict = attack_model(feat)
                 else:
                     attack_model.eval()
-                    predict = attack_model(nonmen_feat)
+                    predict = attack_model(nonmem_feat)
                 optimizer.zero_grad()
                 loss = criterion(predict, ground_truth)
                 if phase == 'train':
                     loss.backward()
                     optimizer.step()
         self.is_model_training = True
+
+        # Save model
+        save_path = os.path.join(PATH, "attack/attack_model", 'attack_model.pth')
+        torch.save(attack_model.state_dict(), save_path)
     def conduct_attack(self, target_samples):
         if self.kind == 'ml':
             assert self.is_model_training is True
