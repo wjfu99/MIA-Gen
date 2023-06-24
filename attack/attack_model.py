@@ -21,7 +21,7 @@ logger.setLevel(logging.INFO)
 PATH = os.getcwd()
 
 class MLAttckerModel(nn.Module):
-    def __init__(self, input_size, hidden_size=128, output_size=3):
+    def __init__(self, input_size, hidden_size=128, output_size=2):
         super(MLAttckerModel, self).__init__()
         self.input_layer = nn.Linear(input_size, hidden_size)
         self.hidden_layer = nn.Linear(hidden_size, hidden_size)
@@ -30,7 +30,7 @@ class MLAttckerModel(nn.Module):
     def forward(self, x):
         x = torch.relu(self.input_layer(x))
         x = torch.relu(self.hidden_layer(x))
-        output = torch.softmax(self.output_layer(x), dim=1)
+        output = self.output_layer(x)
         return output
 
 
@@ -44,33 +44,6 @@ class AttackModel:
             self.is_model_training = False
         if reference_model is not None:
             self.reference_model = reference_model
-    @staticmethod
-    def output_reformat(output_dict):
-        for key in output_dict.keys():
-            output_dict[key] = output_dict[key].cpu().detach().numpy()
-        return output_dict
-    @staticmethod
-    def loss_function(self, recon_x, x, mu, log_var, z):
-
-        if self.model_config.reconstruction_loss == "mse":
-
-            recon_loss = F.mse_loss(
-                recon_x.reshape(x.shape[0], -1),
-                x.reshape(x.shape[0], -1),
-                reduction="none",
-            ).sum(dim=-1)
-
-        elif self.model_config.reconstruction_loss == "bce":
-
-            recon_loss = F.binary_cross_entropy(
-                recon_x.reshape(x.shape[0], -1),
-                x.reshape(x.shape[0], -1),
-                reduction="none",
-            ).sum(dim=-1)
-
-        KLD = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=-1)
-
-        return (recon_loss + KLD), recon_loss, KLD
 
     def target_model_revision(self, model):
         ori_class = model.__class__
@@ -142,14 +115,14 @@ class AttackModel:
         )
         return output
 
-    def data_prepare(self, path="attack/attack_data", type="shadow"):
+    def data_prepare(self, path="attack/attack_data", kind="shadow"):
         logger.info("Preparing data...")
         data_path = os.path.join(PATH, path)
-        target_model = getattr(self, type+"_model")
-        mem_data = self.datasets[type]['mem']
-        nonmem_data = self.datasets[type]['nonmem']
-        mem_path = os.path.join(data_path, type, "mem_feat.pkl")
-        nonmem_path = os.path.join(data_path, type,"nonmen_feat.pkl")
+        target_model = getattr(self, kind + "_model")
+        mem_data = self.datasets[kind]['mem']
+        nonmem_data = self.datasets[kind]['nonmem']
+        mem_path = os.path.join(data_path, kind, "mem_feat.pkl")
+        nonmem_path = os.path.join(data_path, kind, "nonmen_feat.pkl")
         if not utils.check_files_exist(mem_path, nonmem_path):
             logger.info("Generating feature vectors for memory data...")
             mem_feat = self.eval_perturb(target_model, mem_data)
@@ -165,39 +138,57 @@ class AttackModel:
         logger.info("Data preparation complete.")
         return mem_feat, nonmem_feat
 
-    def attack_model_training(self, epoch_num=100):
+    @staticmethod
+    def frequency(data, split=50):
+        # Get the number of random variables
+        C = data.shape[0]
+
+        # Initialize the frequency vector for each random variable
+        freq_vec = np.empty((C, split))
+
+        # Get the range of each random variable
+        ranges = np.ptp(data, axis=1)
+
+        # Divide the range of each random variable into N parts
+        intervals = [np.linspace(data[i].min(), data[i].max(), split + 1) for i in range(C)]
+
+        # Loop through each interval and count the number of occurrences of each random variable
+        for i in range(C):
+            for j in range(split):
+                freq_vec[i][j] = len(
+                    np.where(np.logical_and(data[i] >= intervals[i][j], data[i] <= intervals[i][j + 1]))[0])
+
+        return freq_vec
+    def attack_model_training(self, epoch_num=1000):
         # target_model = self.shadow_model
         #
         # mem_data = self.datasets['shadow']['mem']
         # nonmem_data = self.datasets['shadow']['nonmem']
         # mem_dist = self.eval_perturb(target_model, mem_data).per_losses
         # nonmen_dist = self.eval_perturb(target_model, nonmem_data).per_losses
-        mem_feat, nonmem_feat = self.data_prepare()
-        mem_feat, nonmem_feat = mem_feat.var_losses, nonmem_feat.var_losses
+        mem_feat, nonmem_feat = self.data_prepare(kind="shadow")
+        mem_feat, nonmem_feat = np.sort(mem_feat.var_losses, axis=1), np.sort(nonmem_feat.var_losses, axis=1)
         mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_feat, nonmem_feat)
-        feat = np.concatenate(mem_feat, nonmem_feat)
-        ground_truth = torch.cat([torch.zeros(mem_feat.shape[0]), torch.ones(nonmem_feat.shape[0])]).cuda()
+        feat = torch.cat([mem_feat, nonmem_feat])
+        ground_truth = torch.cat([torch.zeros(mem_feat.shape[0]), torch.ones(nonmem_feat.shape[0])]).type(torch.LongTensor).cuda()
         feature_dim = mem_feat.shape[-1]
         attack_model = MLAttckerModel(feature_dim).cuda()
         optimizer = optim.Adam(attack_model.parameters(), lr=0.001, weight_decay=0.0005)
         # schedular = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[])
-        criterion = torch.nn.CrossEntropyLoss()
+        weight = torch.Tensor([1, 9]).cuda()
+        criterion = torch.nn.CrossEntropyLoss(weight=weight)
         print_freq = 10
-        for i in range(epoch_num):
-            for phase in ['train', 'val']:
-                if phase == 'train':
-                    attack_model.train()
-                    predict = attack_model(feat)
-                else:
-                    attack_model.eval()
-                    predict = attack_model(nonmem_feat)
-                optimizer.zero_grad()
-                loss = criterion(predict, ground_truth)
-                if phase == 'train':
-                    loss.backward()
-                    optimizer.step()
+        for i in tqdm(range(epoch_num)):
+            attack_model.train()
+            predict = attack_model(feat)
+            optimizer.zero_grad()
+            loss = criterion(predict, ground_truth)
+            loss.backward()
+            optimizer.step()
+            # Print the loss every 10 epochs
+            if i % print_freq == 0:
+                print(f"Epoch {i} - Loss: {loss.item()}")
         self.is_model_training = True
-
         # Save model
         save_path = os.path.join(PATH, "attack/attack_model", 'attack_model.pth')
         torch.save(attack_model.state_dict(), save_path)
@@ -219,3 +210,32 @@ class AttackModel:
         # make sure the pixel values are within [0, 1]
         noisy_tensor = torch.clamp(noisy_tensor, 0.0, 1.0)
         return noisy_tensor
+
+    @staticmethod
+    def output_reformat(output_dict):
+        for key in output_dict.keys():
+            output_dict[key] = output_dict[key].cpu().detach().numpy()
+        return output_dict
+
+    @staticmethod
+    def loss_function(self, recon_x, x, mu, log_var, z):
+
+        if self.model_config.reconstruction_loss == "mse":
+
+            recon_loss = F.mse_loss(
+                recon_x.reshape(x.shape[0], -1),
+                x.reshape(x.shape[0], -1),
+                reduction="none",
+            ).sum(dim=-1)
+
+        elif self.model_config.reconstruction_loss == "bce":
+
+            recon_loss = F.binary_cross_entropy(
+                recon_x.reshape(x.shape[0], -1),
+                x.reshape(x.shape[0], -1),
+                reduction="none",
+            ).sum(dim=-1)
+
+        KLD = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=-1)
+
+        return (recon_loss + KLD), recon_loss, KLD
