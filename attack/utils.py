@@ -94,6 +94,22 @@ def tensor_to_ndarray(*tensors):
     return ndarrays
 
 
+def convert_labels_to_one_hot(labels, num_classes):
+    '''
+    Converts labels of samples from format (N,) to (N, C), where C is the number of classes
+
+    Args:
+    labels : numpy array of shape (N,) containing the labels of each sample
+    num_classes : integer indicating the total number of classes in the dataset
+
+    Returns:
+    numpy array of shape (N, C), where C is the number of classes, containing the one-hot encoded labels
+    '''
+    one_hot_labels = np.zeros((labels.shape[0], num_classes))
+    one_hot_labels[np.arange(labels.shape[0]), labels] = 1
+    return one_hot_labels
+
+
 def show_image(image):
     # show reconstructions
     if image.shape[0] == 1:

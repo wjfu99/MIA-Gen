@@ -11,6 +11,7 @@ from tqdm import tqdm
 from attack import utils
 from attack.utils import Dict
 from sklearn.metrics import roc_auc_score, roc_curve, auc, precision_recall_curve, f1_score
+from itertools import cycle
 import torchvision.datasets as datasets
 import matplotlib.pyplot as plt
 
@@ -112,6 +113,20 @@ class AttackModel:
             )
         return output
 
+    def gen_data_vae(self, model, sample_numbers=3000, batch_size=100):  # TODO: sample without the fit function.
+        model.eval()
+        z_dim = model.latent_dim
+        generated_samples = []
+        with torch.no_grad():
+            for i in range(0, sample_numbers, batch_size):
+                z = torch.normal(0, 1, size=(batch_size, z_dim)).cuda()
+                gen = model.decoder(z)["reconstruction"]
+                gen = utils.tensor_to_ndarray(gen)[0]
+                generated_samples.append(gen)
+        gens = np.concatenate(generated_samples, axis=0)
+        gens = torch.from_numpy(gens).float()
+        return gens
+
     def data_prepare(self, kind, path="attack/attack_data", calibration=True):
         logger.info("Preparing data...")
         data_path = os.path.join(PATH, path)
@@ -122,24 +137,30 @@ class AttackModel:
         if calibration:
             mem_path = os.path.join(data_path, kind, "cali", "mem_feat.npz")
             nonmem_path = os.path.join(data_path, kind, "cali", "nonmen_feat.npz")
+            gen_path = os.path.join(data_path, kind, "cali", "gen_feat.npz")
             ref_mem_path = os.path.join(data_path, kind, "cali", "ref_mem_feat.npz")
             ref_nonmem_path = os.path.join(data_path, kind, "cali", "ref_nonmen_feat.npz")
+            ref_gen_path = os.path.join(data_path, kind, "cali", "ref_gen_feat.npz")
         else:
             mem_path = os.path.join(data_path, kind, "noncali", "mem_feat.npz")
             nonmem_path = os.path.join(data_path, kind, "noncali", "nonmen_feat.npz")
-        if not utils.check_files_exist(mem_path, nonmem_path):
+        if not utils.check_files_exist(mem_path, nonmem_path, gen_path):
             if calibration:
                 logger.info("Generating feature vectors for memory data...")
                 mem_feat, ref_mem_feat = self.eval_perturb(target_model, mem_data, calibration=calibration)
-                # ref_mem_feat = self.eval_perturb(reference_model, mem_data, calibration=calibration)
                 logger.info("Generating feature vectors for non-memory data...")
                 nonmem_feat, ref_nonmem_feat = self.eval_perturb(target_model, nonmem_data, calibration=calibration)
-                # ref_nonmem_feat = self.eval_perturb(reference_model, nonmem_data, calibration=calibration)
+                logger.info("Generating feature vectors for generative data...")
+                gen_data = self.gen_data_vae(target_model)
+                gen_feat, ref_gen_feat = self.eval_perturb(target_model, gen_data, calibration=calibration)
+
                 logger.info("Saving feature vectors...")
                 utils.save_dict_to_npz(mem_feat, mem_path)
                 utils.save_dict_to_npz(nonmem_feat, nonmem_path)
+                utils.save_dict_to_npz(gen_feat, gen_path)
                 utils.save_dict_to_npz(ref_mem_feat, ref_mem_path)
                 utils.save_dict_to_npz(ref_nonmem_feat, ref_nonmem_path)
+                utils.save_dict_to_npz(ref_gen_feat, ref_gen_path)
             else:
                 logger.info("Generating feature vectors for memory data...")
                 mem_feat = self.eval_perturb(target_model, mem_data, calibration=calibration)
@@ -155,6 +176,8 @@ class AttackModel:
                 ref_mem_feat = utils.load_dict_from_npz(ref_mem_path)
                 nonmem_feat = utils.load_dict_from_npz(nonmem_path)
                 ref_nonmem_feat = utils.load_dict_from_npz(ref_nonmem_path)
+                gen_feat = utils.load_dict_from_npz(gen_path)
+                ref_gen_feat = utils.load_dict_from_npz(ref_gen_path)
             else:
                 logger.info("Loading feature vectors...")
                 mem_feat = utils.load_dict_from_npz(mem_path)
@@ -164,8 +187,10 @@ class AttackModel:
             return Dict(
                 mem_feat=mem_feat,
                 nonmem_feat=nonmem_feat,
+                gen_feat=gen_feat,
                 ref_mem_feat=ref_mem_feat,
-                ref_nonmem_feat=ref_nonmem_feat
+                ref_nonmem_feat=ref_nonmem_feat,
+                ref_gen_feat = ref_gen_feat
                         )
         else:
             return Dict(
@@ -181,15 +206,20 @@ class AttackModel:
                    - info_dict.ref_mem_feat.ref_var_losses / info_dict.ref_mem_feat.ref_ori_losses[:, None]
         nonmem_feat = info_dict.nonmem_feat.var_losses / info_dict.nonmem_feat.ori_losses[:, None]\
                    - info_dict.ref_nonmem_feat.ref_var_losses / info_dict.ref_nonmem_feat.ref_ori_losses[:, None]
+        gen_feat = info_dict.gen_feat.var_losses / info_dict.gen_feat.ori_losses[:, None] \
+                      - info_dict.ref_gen_feat.ref_var_losses / info_dict.ref_gen_feat.ref_ori_losses[:, None]
+
         mem_freq = self.frequency(mem_feat, split=100)
         nonmem_freq = self.frequency(nonmem_feat, split=100)
-        mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_freq, nonmem_freq)
-        feat = torch.cat([mem_feat, nonmem_feat])
-        ground_truth = torch.cat([torch.zeros(mem_feat.shape[0]), torch.ones(nonmem_feat.shape[0])]).type(
-            torch.LongTensor).cuda()
+        gen_freq = self.frequency(gen_feat, split=100)
+
+        mem_feat, nonmem_feat, gen_feat = utils.ndarray_to_tensor(mem_freq, nonmem_freq, gen_freq)
+        feat = torch.cat([mem_feat, nonmem_feat, gen_feat])
+        ground_truth = torch.cat([torch.zeros(mem_feat.shape[0]), torch.ones(nonmem_feat.shape[0]),
+                                  torch.ones(gen_feat.shape[0])*2]).type(torch.LongTensor).cuda()
         return feat, ground_truth
 
-    def attack_model_training(self, epoch_num=50, load_trained=True):
+    def attack_model_training(self, epoch_num=50, load_trained=True, ):
         # target_model = self.shadow_model
         #
         # mem_data = self.datasets['shadow']['mem']
@@ -205,7 +235,7 @@ class AttackModel:
         eval_feat, eval_ground_truth = self.feat_prepare(eval_raw_info)
 
         feature_dim = feat.shape[-1]
-        attack_model = MLAttckerModel(feature_dim).cuda()
+        attack_model = MLAttckerModel(feature_dim, output_size=3).cuda()
         if load_trained and utils.check_files_exist(save_path):
             attack_model.load_state_dict(torch.load(save_path))
             self.attack_model = attack_model
@@ -213,7 +243,7 @@ class AttackModel:
             return
         optimizer = optim.Adam(attack_model.parameters(), lr=0.001, weight_decay=0.0005)
         # schedular = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[])
-        weight = torch.Tensor([1, 9]).cuda()
+        weight = torch.Tensor([1, 3, 3]).cuda()
         criterion = torch.nn.CrossEntropyLoss(weight=weight)
         print_freq = 10
         for i in range(epoch_num):
@@ -228,8 +258,8 @@ class AttackModel:
                 attack_model.eval()
                 eval_predict = attack_model(eval_feat)
                 print(f"Epoch {i} - Loss: {loss.item()}")
-                self.eval_attack(ground_truth, predict[:, 1], plot=False)
-                self.eval_attack(eval_ground_truth, eval_predict[:, 1], plot=False)
+                self.eval_attack(ground_truth, predict, plot=False)
+                self.eval_attack(eval_ground_truth, eval_predict, plot=False)
         self.is_model_training = True
         self.attack_model = attack_model
         # Save model
@@ -241,26 +271,47 @@ class AttackModel:
             raw_info = self.data_prepare(kind="target", calibration=True)
             feat, ground_truth = self.feat_prepare(raw_info)
             predict = attack_model(feat)
-            self.eval_attack(ground_truth, predict[:, 1])
+            self.eval_attack(ground_truth, predict)
             # dist = self.eval_perturb(self.target_model, target_samples).pre_losses
             # predict = self.ml_model(feat)
 
     @staticmethod
     def eval_attack(y_true, y_scores, plot=True):
+        n_classes = 3
         y_true, y_scores = utils.tensor_to_ndarray(y_true, y_scores)
-        fpr, tpr, thresholds = roc_curve(y_true, y_scores)
-        auc_score = roc_auc_score(y_true, y_scores)
-        logger.info(f"Auc on the target model: {auc_score}")
+        y_true = utils.convert_labels_to_one_hot(y_true, num_classes=n_classes)
+        fpr = dict()
+        tpr = dict()
+        roc_auc = dict()
+        for i in range(n_classes):
+            fpr[i], tpr[i], _ = roc_curve(y_true[:, i], y_scores[:, i])
+            roc_auc[i] = auc(fpr[i], tpr[i])
+        # Compute micro-average AUC
+        fpr["micro"], tpr["micro"], _ = roc_curve(y_true.ravel(), y_scores.ravel())
+        roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
+        logger.info(f"Auc on the target model: {roc_auc['micro']}")
         if plot:
-            # plot the ROC curve
-            plt.plot(fpr, tpr, label='ROC curve (AUC = %0.2f)' % auc_score)
+            # Plot AUC curves for each class
+            plt.figure()
+            lw = 2
+            colors = cycle(['red', 'darkorange', 'green'])
+            for i, color in zip(range(n_classes), colors):
+                plt.plot(fpr[i], tpr[i], color=color, lw=lw,
+                         label='ROC curve of class {0} (AUC = {1:0.2f})'.format(i, roc_auc[i]))
+
+            # Plot the micro-average ROC curve
+            plt.plot(fpr["micro"], tpr["micro"], color='green', linestyle=':', linewidth=4,
+                     label='micro-average ROC curve (AUC = {0:0.2f})'
+                           ''.format(roc_auc["micro"]))
+
+            # Plot the randomized ROC curve
+            plt.plot([0, 1], [0, 1], 'k--', lw=lw)
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
             plt.xlabel('False Positive Rate')
             plt.ylabel('True Positive Rate')
-            plt.legend()
-            # plot the no-skill line for reference
-            plt.plot([0, 1], [0, 1], linestyle='--')
-
-            # show the plot
+            plt.title('Receiver Operating Characteristic of multiclass classifier')
+            plt.legend(loc="lower right")
             plt.show()
 
     @staticmethod
