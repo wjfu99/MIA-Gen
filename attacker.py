@@ -63,16 +63,16 @@ if dataset == "celeba":
     celeba64_dataset = np.load("./target_model/data/celeba64/celeba64.npz")["arr_0"] / 255.0
     datasets = dict(
         traget=dict(
-            mem=torch.Tensor(celeba64_dataset[:90000]),
-            nonmem=torch.Tensor(celeba64_dataset[90000:100000])
+            mem=torch.Tensor(celeba64_dataset[0:10000]),
+            nonmem=torch.Tensor(celeba64_dataset[10000:130000])
         ),
         shadow=dict(
-            mem=torch.Tensor(celeba64_dataset[100000:145000]),
-            nonmem=torch.Tensor(celeba64_dataset[145000:150000])
+            mem=torch.Tensor(celeba64_dataset[100000:110000]),
+            nonmem=torch.Tensor(celeba64_dataset[110000:113000])
         ),
         reference=dict(
-            mem=torch.Tensor(celeba64_dataset[150000:195000]),
-            nonmem=torch.Tensor(celeba64_dataset[195000:200000])
+            mem=torch.Tensor(celeba64_dataset[150000:160000]),
+            nonmem=torch.Tensor(celeba64_dataset[160000:163000])
         )
     )
     logger.info("Successfully loaded datasets!")

@@ -49,7 +49,7 @@ class AttackModel:
         ori_class = model.__class__
         ori_class.loss_function = self.loss_function
 
-    def generative_model_eval(self, model, input, batch_size=1000):
+    def generative_model_eval(self, model, input, batch_size=100):
         input = input.cuda()
         num_inputs = input.shape[0]
         outputs = []
@@ -200,14 +200,14 @@ class AttackModel:
         # mem_info = info_dict.mem_feat
         # ref_mem_info = info_dict.ref_mem_feat
         mem_feat = info_dict.mem_feat.var_losses / info_dict.mem_feat.ori_losses[:, None]\
-                   - info_dict.ref_mem_feat.var_losses / info_dict.ref_mem_feat.ori_losses[:, None]
+                   - info_dict.ref_mem_feat.ref_var_losses / info_dict.ref_mem_feat.ref_ori_losses[:, None]
         nonmem_feat = info_dict.nonmem_feat.var_losses / info_dict.nonmem_feat.ori_losses[:, None]\
-                   - info_dict.ref_nonmem_feat.var_losses / info_dict.ref_nonmem_feat.ori_losses[:, None]
+                   - info_dict.ref_nonmem_feat.ref_var_losses / info_dict.ref_nonmem_feat.ref_ori_losses[:, None]
         mem_freq = self.frequency(mem_feat, split=100)
         nonmem_freq = self.frequency(nonmem_feat, split=100)
         return mem_freq, nonmem_freq
     @staticmethod
-    def frequency(data, split=50):
+    def frequency(data, interval=(-1, 1), split=50):
         # Get the number of random variables
         C = data.shape[0]
 
@@ -218,13 +218,13 @@ class AttackModel:
         ranges = np.ptp(data, axis=1)
 
         # Divide the range of each random variable into N parts
-        intervals = [np.linspace(data[i].min(), data[i].max(), split + 1) for i in range(C)]
+        intervals = np.linspace(interval[0], interval[1], split + 1)
 
         # Loop through each interval and count the number of occurrences of each random variable
         for i in range(C):
             for j in range(split):
                 freq_vec[i][j] = len(
-                    np.where(np.logical_and(data[i] >= intervals[i][j], data[i] <= intervals[i][j + 1]))[0])
+                    np.where(np.logical_and(data[i] >= intervals[j], data[i] <= intervals[j + 1]))[0])
 
         return freq_vec
     def attack_model_training(self, epoch_num=1000):

@@ -1,6 +1,8 @@
 import os
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
+from torchvision.transforms import ToPILImage
 
 class Dict(dict):
     def __getattr__(self, name):
@@ -74,7 +76,7 @@ def ndarray_to_tensor(*ndarrays):
     Returns:
         tuple of torch.Tensor: A tuple of PyTorch tensors with the same data as the input ndarrays.
     """
-    tensors = tuple(torch.from_numpy(ndarray).cuda() for ndarray in ndarrays)
+    tensors = tuple(torch.from_numpy(ndarray).cuda().float() for ndarray in ndarrays)
     return tensors
 
 
@@ -90,3 +92,20 @@ def tensor_to_ndarray(*tensors):
     """
     ndarrays = tuple(tensor.detach().cpu().numpy() for tensor in tensors)
     return ndarrays
+
+
+def show_image(image):
+    # show reconstructions
+    if image.shape[0] == 1:
+        fig, axes = plt.subplots(figsize=(10, 10))
+        axes.imshow(image.cpu().squeeze(), cmap='gray')
+        axes.axis('off')
+        plt.tight_layout(pad=0.)
+        plt.show()
+    elif image.shape[0] == 3:
+        pil_image = ToPILImage()(image.cpu())
+        fig, axes = plt.subplots(figsize=(10, 10))
+        axes.imshow(pil_image)
+        axes.axis('off')
+        plt.tight_layout(pad=0.)
+        plt.show()
