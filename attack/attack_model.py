@@ -10,6 +10,9 @@ import pickle as pkl
 from tqdm import tqdm
 from attack import utils
 from attack.utils import Dict
+from sklearn.metrics import roc_auc_score, roc_curve, auc, precision_recall_curve, f1_score
+import torchvision.datasets as datasets
+import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 console = logging.StreamHandler()
@@ -134,7 +137,7 @@ class AttackModel:
             )
         return output
 
-    def data_prepare(self, path="attack/attack_data", kind="shadow", calibration=True):
+    def data_prepare(self, kind, path="attack/attack_data", calibration=True):
         logger.info("Preparing data...")
         data_path = os.path.join(PATH, path)
         target_model = getattr(self, kind + "_model")
@@ -227,13 +230,14 @@ class AttackModel:
                     np.where(np.logical_and(data[i] >= intervals[j], data[i] <= intervals[j + 1]))[0])
 
         return freq_vec
-    def attack_model_training(self, epoch_num=1000):
+    def attack_model_training(self, epoch_num=1000, load_trained=True):
         # target_model = self.shadow_model
         #
         # mem_data = self.datasets['shadow']['mem']
         # nonmem_data = self.datasets['shadow']['nonmem']
         # mem_dist = self.eval_perturb(target_model, mem_data).per_losses
         # nonmen_dist = self.eval_perturb(target_model, nonmem_data).per_losses
+        save_path = os.path.join(PATH, "attack/attack_model", 'attack_model.pth')
         raw_info = self.data_prepare(kind="shadow", calibration=True)
         mem_feat, nonmem_feat = self.feat_prepare(raw_info)
         mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_feat, nonmem_feat)
@@ -241,6 +245,11 @@ class AttackModel:
         ground_truth = torch.cat([torch.zeros(mem_feat.shape[0]), torch.ones(nonmem_feat.shape[0])]).type(torch.LongTensor).cuda()
         feature_dim = mem_feat.shape[-1]
         attack_model = MLAttckerModel(feature_dim).cuda()
+        if load_trained and utils.check_files_exist(save_path):
+            attack_model.load_state_dict(torch.load(save_path))
+            self.attack_model = attack_model
+            self.is_model_training = True
+            return
         optimizer = optim.Adam(attack_model.parameters(), lr=0.001, weight_decay=0.0005)
         # schedular = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[])
         weight = torch.Tensor([1, 9]).cuda()
@@ -257,17 +266,40 @@ class AttackModel:
             if i % print_freq == 0:
                 print(f"Epoch {i} - Loss: {loss.item()}")
         self.is_model_training = True
+        self.attack_model = attack_model
         # Save model
-        save_path = os.path.join(PATH, "attack/attack_model", 'attack_model.pth')
         torch.save(attack_model.state_dict(), save_path)
-    def conduct_attack(self, target_samples):
+    def conduct_attack(self, target_samples=None):
         if self.kind == 'ml':
             assert self.is_model_training is True
-            dist = self.eval_perturb(self.target_model, target_samples).pre_losses
-            predict = self.ml_model(dist)
-    def eval_attack(self, predict, true):
-        attack_model = self.ml_model
-        attack_model()
+            attack_model = self.attack_model
+            raw_info = self.data_prepare(kind="target", calibration=True)
+            mem_feat, nonmem_feat = self.feat_prepare(raw_info)
+            mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_feat, nonmem_feat)
+            feat = torch.cat([mem_feat, nonmem_feat])
+            ground_truth = torch.cat([torch.zeros(mem_feat.shape[0]), torch.ones(nonmem_feat.shape[0])]).type(
+                torch.LongTensor).cuda()
+            predict = attack_model(feat)
+            self.eval_attack(ground_truth, predict[:, 1])
+            # dist = self.eval_perturb(self.target_model, target_samples).pre_losses
+            # predict = self.ml_model(feat)
+
+    @staticmethod
+    def eval_attack(y_true, y_scores):
+        y_true, y_scores = utils.tensor_to_ndarray(y_true, y_scores)
+        fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+        auc_score = roc_auc_score(y_true, y_scores)
+        # plot the ROC curve
+        plt.plot(fpr, tpr, label='ROC curve (AUC = %0.2f)' % auc_score)
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.legend()
+
+        # plot the no-skill line for reference
+        plt.plot([0, 1], [0, 1], linestyle='--')
+
+        # show the plot
+        plt.show()
 
     @staticmethod
     def gaussian_noise_tensor(tensor, mean=0.0, std=0.1):

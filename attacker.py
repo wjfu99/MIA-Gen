@@ -44,16 +44,16 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 dataset = "celeba"
 
-target_model = sorted(os.listdir(PATH + '/target_model/target_models_on_'+dataset))[-1]
-trained_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/target_models_on_'+dataset, target_model, 'final_model'))
-trained_model = trained_model.to(device)
+target_path = sorted(os.listdir(PATH + '/target_model/target_models_on_' + dataset))[-1]
+target_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/target_models_on_'+dataset, target_path, 'final_model'))
+target_model = target_model.to(device)
 
-reference_model = sorted(os.listdir(PATH + '/target_model/reference_models_on_'+dataset))[-1]
-reference_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/reference_models_on_'+dataset, reference_model, 'final_model'))
+reference_path = sorted(os.listdir(PATH + '/target_model/reference_models_on_'+dataset))[-1]
+reference_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/reference_models_on_'+dataset, reference_path, 'final_model'))
 reference_model = reference_model.to(device)
 
-shadow_model = sorted(os.listdir(PATH + '/target_model/shadow_models_on_'+dataset))[-1]
-shadow_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/shadow_models_on_'+dataset, shadow_model, 'final_model'))
+shadow_path = sorted(os.listdir(PATH + '/target_model/shadow_models_on_'+dataset))[-1]
+shadow_model = AutoModel.load_from_folder(os.path.join(PATH + '/target_model/shadow_models_on_'+dataset, shadow_path, 'final_model'))
 shadow_model = shadow_model.to(device)
 logger.info("Successfully loaded models!")
 # last_training = sorted(os.listdir('target_model/my_model'))[-1]
@@ -62,9 +62,9 @@ logger.info("Successfully loaded models!")
 if dataset == "celeba":
     celeba64_dataset = np.load("./target_model/data/celeba64/celeba64.npz")["arr_0"] / 255.0
     datasets = dict(
-        traget=dict(
+        target=dict(
             mem=torch.Tensor(celeba64_dataset[0:10000]),
-            nonmem=torch.Tensor(celeba64_dataset[10000:130000])
+            nonmem=torch.Tensor(celeba64_dataset[10000:13000])
         ),
         shadow=dict(
             mem=torch.Tensor(celeba64_dataset[100000:110000]),
