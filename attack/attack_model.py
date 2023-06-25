@@ -73,12 +73,8 @@ class AttackModel:
         :param dataset: N*channel*width*height
         :return: losses: N*1; var_losses: N*1; per_losses: N*Mask_Num; ori_losses: N*1
         """
-        losses = []
-        ori_losses = []
-        var_losses = []
         per_losses = []
         ref_per_losses = []
-        peak_losses = []
         model.eval()
         # revising some original methods of target model.
         self.target_model_revision(model)
@@ -97,27 +93,6 @@ class AttackModel:
         if calibration:
             ref_per_losses = np.concatenate(ref_per_losses, axis=1)
             ref_var_losses = ref_per_losses - ref_ori_losses[:, None]
-        # for data in tqdm(dataset):
-        #     data = torch.unsqueeze(data, 0)
-        #     # show_image(data[0])
-        #     # show_image(eval_loss(data).recon_x.detach()[0])
-        #     ori_loss = self.generative_model_eval(model, data).loss.item()
-        #     # masks = mask_tensor(data, prob=0.05, num_masks=per_num)
-        #     masks = self.gaussian_noise_tensor(data, 0, 0.1, per_num)
-        #     # masks = add_gaussian_noise(data, noise_scale=0.1, num_noised=per_num)
-        #     per_loss = []
-        #     avg_loss = 0
-        #     for mask in masks:
-        #         mask = torch.unsqueeze(mask, 0)
-        #         recon_loss = self.generative_model_eval(model, mask).loss.item()
-        #         per_loss.append(recon_loss)
-        #         avg_loss += recon_loss
-        #     avg_loss = avg_loss / per_num
-        #     ori_losses.append(ori_loss)
-        #     per_losses.append(per_loss)
-        #     losses.append(avg_loss)
-        #     var_losses.append(avg_loss - ori_loss)
-        #     peak_losses.append(np.min(per_loss) - ori_loss)
         if calibration:
             output = (Dict(
                 per_losses=per_losses,
@@ -208,28 +183,12 @@ class AttackModel:
                    - info_dict.ref_nonmem_feat.ref_var_losses / info_dict.ref_nonmem_feat.ref_ori_losses[:, None]
         mem_freq = self.frequency(mem_feat, split=100)
         nonmem_freq = self.frequency(nonmem_feat, split=100)
-        return mem_freq, nonmem_freq
-    @staticmethod
-    def frequency(data, interval=(-1, 1), split=50):
-        # Get the number of random variables
-        C = data.shape[0]
+        mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_freq, nonmem_freq)
+        feat = torch.cat([mem_feat, nonmem_feat])
+        ground_truth = torch.cat([torch.zeros(mem_feat.shape[0]), torch.ones(nonmem_feat.shape[0])]).type(
+            torch.LongTensor).cuda()
+        return feat, ground_truth
 
-        # Initialize the frequency vector for each random variable
-        freq_vec = np.empty((C, split))
-
-        # Get the range of each random variable
-        ranges = np.ptp(data, axis=1)
-
-        # Divide the range of each random variable into N parts
-        intervals = np.linspace(interval[0], interval[1], split + 1)
-
-        # Loop through each interval and count the number of occurrences of each random variable
-        for i in range(C):
-            for j in range(split):
-                freq_vec[i][j] = len(
-                    np.where(np.logical_and(data[i] >= intervals[j], data[i] <= intervals[j + 1]))[0])
-
-        return freq_vec
     def attack_model_training(self, epoch_num=50, load_trained=True):
         # target_model = self.shadow_model
         #
@@ -240,18 +199,12 @@ class AttackModel:
         save_path = os.path.join(PATH, "attack/attack_model", 'attack_model.pth')
 
         raw_info = self.data_prepare(kind="shadow", calibration=True)
-        mem_feat, nonmem_feat = self.feat_prepare(raw_info)
-        mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_feat, nonmem_feat)
-        feat = torch.cat([mem_feat, nonmem_feat])
-        ground_truth = torch.cat([torch.zeros(mem_feat.shape[0]), torch.ones(nonmem_feat.shape[0])]).type(torch.LongTensor).cuda()
+        feat, ground_truth = self.feat_prepare(raw_info)
 
         eval_raw_info = self.data_prepare(kind="target", calibration=True)
-        eval_mem_feat, eval_nonmem_feat = self.feat_prepare(eval_raw_info)
-        eval_mem_feat, eval_nonmem_feat = utils.ndarray_to_tensor(eval_mem_feat, eval_nonmem_feat)
-        eval_feat = torch.cat([eval_mem_feat, eval_nonmem_feat])
-        eval_ground_truth = torch.cat([torch.zeros(eval_mem_feat.shape[0]), torch.ones(eval_nonmem_feat.shape[0])]).type(torch.LongTensor).cuda()
+        eval_feat, eval_ground_truth = self.feat_prepare(eval_raw_info)
 
-        feature_dim = mem_feat.shape[-1]
+        feature_dim = feat.shape[-1]
         attack_model = MLAttckerModel(feature_dim).cuda()
         if load_trained and utils.check_files_exist(save_path):
             attack_model.load_state_dict(torch.load(save_path))
@@ -286,11 +239,7 @@ class AttackModel:
             assert self.is_model_training is True
             attack_model = self.attack_model
             raw_info = self.data_prepare(kind="target", calibration=True)
-            mem_feat, nonmem_feat = self.feat_prepare(raw_info)
-            mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_feat, nonmem_feat)
-            feat = torch.cat([mem_feat, nonmem_feat])
-            ground_truth = torch.cat([torch.zeros(mem_feat.shape[0]), torch.ones(nonmem_feat.shape[0])]).type(
-                torch.LongTensor).cuda()
+            feat, ground_truth = self.feat_prepare(raw_info)
             predict = attack_model(feat)
             self.eval_attack(ground_truth, predict[:, 1])
             # dist = self.eval_perturb(self.target_model, target_samples).pre_losses
@@ -352,3 +301,25 @@ class AttackModel:
         KLD = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=-1)
 
         return (recon_loss + KLD), recon_loss, KLD
+
+    @staticmethod
+    def frequency(data, interval=(-1, 1), split=50):
+        # Get the number of random variables
+        C = data.shape[0]
+
+        # Initialize the frequency vector for each random variable
+        freq_vec = np.empty((C, split))
+
+        # Get the range of each random variable
+        ranges = np.ptp(data, axis=1)
+
+        # Divide the range of each random variable into N parts
+        intervals = np.linspace(interval[0], interval[1], split + 1)
+
+        # Loop through each interval and count the number of occurrences of each random variable
+        for i in range(C):
+            for j in range(split):
+                freq_vec[i][j] = len(
+                    np.where(np.logical_and(data[i] >= intervals[j], data[i] <= intervals[j + 1]))[0])
+
+        return freq_vec
