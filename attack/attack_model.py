@@ -63,7 +63,7 @@ class AttackModel:
         output = np.concatenate(outputs, axis=0)
         return output
 
-    def eval_perturb(self, model, dataset, per_num=101):
+    def eval_perturb(self, model, dataset, per_num=101, calibration=True):
         """
         Evaluate the loss of the perturbed data
 
@@ -74,17 +74,26 @@ class AttackModel:
         ori_losses = []
         var_losses = []
         per_losses = []
+        ref_per_losses = []
         peak_losses = []
         model.eval()
         # revising some original methods of target model.
         self.target_model_revision(model)
         ori_losses = self.generative_model_eval(model, dataset)
+        if calibration:
+            ref_ori_losses = self.generative_model_eval(self.reference_model, dataset)
         for _ in tqdm(range(per_num)):
             per_dataset = self.gaussian_noise_tensor(dataset, 0, 0.1)
             per_loss = self.generative_model_eval(model, per_dataset)
             per_losses.append(per_loss[:, None])
+            if calibration:
+                ref_per_loss = self.generative_model_eval(self.reference_model, per_dataset)
+                ref_per_losses.append(ref_per_loss[:, None])
         per_losses = np.concatenate(per_losses, axis=1)
         var_losses = per_losses - ori_losses[:, None]
+        if calibration:
+            ref_per_losses = np.concatenate(ref_per_losses, axis=1)
+            ref_var_losses = ref_per_losses - ref_ori_losses[:, None]
         # for data in tqdm(dataset):
         #     data = torch.unsqueeze(data, 0)
         #     # show_image(data[0])
@@ -106,38 +115,97 @@ class AttackModel:
         #     losses.append(avg_loss)
         #     var_losses.append(avg_loss - ori_loss)
         #     peak_losses.append(np.min(per_loss) - ori_loss)
-        output = Dict(
-            per_losses=per_losses,
-            ori_losses=ori_losses,
-            var_losses=var_losses,
-            # losses=np.array(losses),
-            # peak_losses=np.array(peak_losses)
-        )
+        if calibration:
+            output = (Dict(
+                per_losses=per_losses,
+                ori_losses=ori_losses,
+                var_losses=var_losses,
+            ),
+            Dict(
+                ref_per_losses=ref_per_losses,
+                ref_ori_losses=ref_ori_losses,
+                ref_var_losses=ref_var_losses,
+            ))
+        else:
+            output = Dict(
+                per_losses=per_losses,
+                ori_losses=ori_losses,
+                var_losses=var_losses,
+            )
         return output
 
-    def data_prepare(self, path="attack/attack_data", kind="shadow"):
+    def data_prepare(self, path="attack/attack_data", kind="shadow", calibration=True):
         logger.info("Preparing data...")
         data_path = os.path.join(PATH, path)
         target_model = getattr(self, kind + "_model")
+        reference_model = self.reference_model
         mem_data = self.datasets[kind]['mem']
         nonmem_data = self.datasets[kind]['nonmem']
-        mem_path = os.path.join(data_path, kind, "mem_feat.pkl")
-        nonmem_path = os.path.join(data_path, kind, "nonmen_feat.pkl")
-        if not utils.check_files_exist(mem_path, nonmem_path):
-            logger.info("Generating feature vectors for memory data...")
-            mem_feat = self.eval_perturb(target_model, mem_data)
-            logger.info("Generating feature vectors for non-memory data...")
-            nonmem_feat = self.eval_perturb(target_model, nonmem_data)
-            logger.info("Saving feature vectors...")
-            utils.save_dict_to_npz(mem_feat, mem_path)
-            utils.save_dict_to_npz(nonmem_feat, nonmem_path)
+        if calibration:
+            mem_path = os.path.join(data_path, kind, "cali", "mem_feat.npz")
+            nonmem_path = os.path.join(data_path, kind, "cali", "nonmen_feat.npz")
+            ref_mem_path = os.path.join(data_path, kind, "cali", "ref_mem_feat.npz")
+            ref_nonmem_path = os.path.join(data_path, kind, "cali", "ref_nonmen_feat.npz")
         else:
-            logger.info("Loading feature vectors...")
-            mem_feat = utils.load_dict_from_npz(mem_path)
-            nonmem_feat = utils.load_dict_from_npz(nonmem_path)
+            mem_path = os.path.join(data_path, kind, "noncali", "mem_feat.npz")
+            nonmem_path = os.path.join(data_path, kind, "noncali", "nonmen_feat.npz")
+        if not utils.check_files_exist(mem_path, nonmem_path):
+            if calibration:
+                logger.info("Generating feature vectors for memory data...")
+                mem_feat, ref_mem_feat = self.eval_perturb(target_model, mem_data, calibration=calibration)
+                # ref_mem_feat = self.eval_perturb(reference_model, mem_data, calibration=calibration)
+                logger.info("Generating feature vectors for non-memory data...")
+                nonmem_feat, ref_nonmem_feat = self.eval_perturb(target_model, nonmem_data, calibration=calibration)
+                # ref_nonmem_feat = self.eval_perturb(reference_model, nonmem_data, calibration=calibration)
+                logger.info("Saving feature vectors...")
+                utils.save_dict_to_npz(mem_feat, mem_path)
+                utils.save_dict_to_npz(nonmem_feat, nonmem_path)
+                utils.save_dict_to_npz(ref_mem_feat, ref_mem_path)
+                utils.save_dict_to_npz(ref_nonmem_feat, ref_nonmem_path)
+            else:
+                logger.info("Generating feature vectors for memory data...")
+                mem_feat = self.eval_perturb(target_model, mem_data, calibration=calibration)
+                logger.info("Generating feature vectors for non-memory data...")
+                nonmem_feat = self.eval_perturb(target_model, nonmem_data, calibration=calibration)
+                logger.info("Saving feature vectors...")
+                utils.save_dict_to_npz(mem_feat, mem_path)
+                utils.save_dict_to_npz(nonmem_feat, nonmem_path)
+        else:
+            if calibration:
+                logger.info("Loading feature vectors...")
+                mem_feat = utils.load_dict_from_npz(mem_path)
+                ref_mem_feat = utils.load_dict_from_npz(ref_mem_path)
+                nonmem_feat = utils.load_dict_from_npz(nonmem_path)
+                ref_nonmem_feat = utils.load_dict_from_npz(ref_nonmem_path)
+            else:
+                logger.info("Loading feature vectors...")
+                mem_feat = utils.load_dict_from_npz(mem_path)
+                nonmem_feat = utils.load_dict_from_npz(nonmem_path)
         logger.info("Data preparation complete.")
-        return mem_feat, nonmem_feat
+        if calibration:
+            return Dict(
+                mem_feat=mem_feat,
+                nonmem_feat=nonmem_feat,
+                ref_mem_feat=ref_mem_feat,
+                ref_nonmem_feat=ref_nonmem_feat
+                        )
+        else:
+            return Dict(
+                mem_feat=mem_feat,
+                nonmem_feat=nonmem_feat
+            )
 
+
+    def feat_prepare(self, info_dict):
+        # mem_info = info_dict.mem_feat
+        # ref_mem_info = info_dict.ref_mem_feat
+        mem_feat = info_dict.mem_feat.var_losses / info_dict.mem_feat.ori_losses[:, None]\
+                   - info_dict.ref_mem_feat.var_losses / info_dict.ref_mem_feat.ori_losses[:, None]
+        nonmem_feat = info_dict.nonmem_feat.var_losses / info_dict.nonmem_feat.ori_losses[:, None]\
+                   - info_dict.ref_nonmem_feat.var_losses / info_dict.ref_nonmem_feat.ori_losses[:, None]
+        mem_freq = self.frequency(mem_feat, split=100)
+        nonmem_freq = self.frequency(nonmem_feat, split=100)
+        return mem_freq, nonmem_freq
     @staticmethod
     def frequency(data, split=50):
         # Get the number of random variables
@@ -166,8 +234,8 @@ class AttackModel:
         # nonmem_data = self.datasets['shadow']['nonmem']
         # mem_dist = self.eval_perturb(target_model, mem_data).per_losses
         # nonmen_dist = self.eval_perturb(target_model, nonmem_data).per_losses
-        mem_feat, nonmem_feat = self.data_prepare(kind="shadow")
-        mem_feat, nonmem_feat = np.sort(mem_feat.var_losses, axis=1), np.sort(nonmem_feat.var_losses, axis=1)
+        raw_info = self.data_prepare(kind="shadow", calibration=True)
+        mem_feat, nonmem_feat = self.feat_prepare(raw_info)
         mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_feat, nonmem_feat)
         feat = torch.cat([mem_feat, nonmem_feat])
         ground_truth = torch.cat([torch.zeros(mem_feat.shape[0]), torch.ones(nonmem_feat.shape[0])]).type(torch.LongTensor).cuda()
