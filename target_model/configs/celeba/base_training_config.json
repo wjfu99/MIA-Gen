@@ -1,8 +1,8 @@
 {
   "name": "BaseTrainerConfig",
-  "output_dir": "shadow_models_on_celeba",
-  "train_idx": [100000, 110000],
-  "eval_idx": [110000, 113000],
+  "output_dir": "reference_models_on_celeba",
+  "train_idx": [150000, 160000],
+  "eval_idx": [160000, 163000],
   "per_device_train_batch_size": 100,
   "per_device_eval_batch_size": 100,
   "num_epochs": 50,
