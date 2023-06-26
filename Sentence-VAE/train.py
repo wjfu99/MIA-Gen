@@ -5,7 +5,7 @@ import torch
 import argparse
 import numpy as np
 from multiprocessing import cpu_count
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from collections import OrderedDict, defaultdict
 
@@ -98,7 +98,7 @@ def main(args):
                 dataset=datasets[split],
                 batch_size=args.batch_size,
                 shuffle=split=='train',
-                num_workers=cpu_count(),
+                num_workers=32,
                 pin_memory=torch.cuda.is_available()
             )
 
