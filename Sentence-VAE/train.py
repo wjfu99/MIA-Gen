@@ -16,8 +16,8 @@ from model import SentenceVAE
 
 def main(args):
     ts = time.strftime('%Y-%b-%d-%H:%M:%S', time.gmtime())
-
-    splits = ['train', 'valid'] + (['test'] if args.test else [])
+    model_type = "target"
+    splits = [model_type+'_train', model_type+'_valid'] + (['test'] if args.test else [])
 
     datasets = OrderedDict()
     for split in splits:
@@ -30,11 +30,11 @@ def main(args):
         )
 
     params = dict(
-        vocab_size=datasets['train'].vocab_size,
-        sos_idx=datasets['train'].sos_idx,
-        eos_idx=datasets['train'].eos_idx,
-        pad_idx=datasets['train'].pad_idx,
-        unk_idx=datasets['train'].unk_idx,
+        vocab_size=datasets[model_type+'_train'].vocab_size,
+        sos_idx=datasets[model_type+'_train'].sos_idx,
+        eos_idx=datasets[model_type+'_train'].eos_idx,
+        pad_idx=datasets[model_type+'_train'].pad_idx,
+        unk_idx=datasets[model_type+'_train'].unk_idx,
         max_sequence_length=args.max_sequence_length,
         embedding_size=args.embedding_size,
         rnn_type=args.rnn_type,
@@ -58,7 +58,7 @@ def main(args):
         writer.add_text("args", str(args))
         writer.add_text("ts", ts)
 
-    save_model_path = os.path.join(args.save_model_path, ts)
+    save_model_path = os.path.join(args.save_model_path, model_type, ts)
     os.makedirs(save_model_path)
 
     with open(os.path.join(save_model_path, 'model_params.json'), 'w') as f:
@@ -70,7 +70,7 @@ def main(args):
         elif anneal_function == 'linear':
             return min(1, step/x0)
 
-    NLL = torch.nn.NLLLoss(ignore_index=datasets['train'].pad_idx, reduction='sum')
+    NLL = torch.nn.NLLLoss(ignore_index=datasets[model_type+'_train'].pad_idx, reduction='sum')
     def loss_fn(logp, target, length, mean, logv, anneal_function, step, k, x0):
 
         # cut-off unnecessary padding from target, and flatten
@@ -97,7 +97,7 @@ def main(args):
             data_loader = DataLoader(
                 dataset=datasets[split],
                 batch_size=args.batch_size,
-                shuffle=split=='train',
+                shuffle=split==model_type+'_train',
                 num_workers=32,
                 pin_memory=torch.cuda.is_available()
             )
@@ -105,7 +105,7 @@ def main(args):
             tracker = defaultdict(tensor)
 
             # Enable/Disable Dropout
-            if split == 'train':
+            if 'train' in split:
                 model.train()
             else:
                 model.eval()
@@ -128,7 +128,7 @@ def main(args):
                 loss = (NLL_loss + KL_weight * KL_loss) / batch_size
 
                 # backward + optimization
-                if split == 'train':
+                if 'train' in split:
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
@@ -151,11 +151,11 @@ def main(args):
                           % (split.upper(), iteration, len(data_loader)-1, loss.item(), NLL_loss.item()/batch_size,
                           KL_loss.item()/batch_size, KL_weight))
 
-                if split == 'valid':
+                if 'valid' in split:
                     if 'target_sents' not in tracker:
                         tracker['target_sents'] = list()
-                    tracker['target_sents'] += idx2word(batch['target'].data, i2w=datasets['train'].get_i2w(),
-                                                        pad_idx=datasets['train'].pad_idx)
+                    tracker['target_sents'] += idx2word(batch['target'].data, i2w=datasets[model_type+'_train'].get_i2w(),
+                                                        pad_idx=datasets[model_type+'_train'].pad_idx)
                     tracker['z'] = torch.cat((tracker['z'], z.data), dim=0)
 
             print("%s Epoch %02d/%i, Mean ELBO %9.4f" % (split.upper(), epoch, args.epochs, tracker['ELBO'].mean()))
@@ -164,7 +164,7 @@ def main(args):
                 writer.add_scalar("%s-Epoch/ELBO" % split.upper(), torch.mean(tracker['ELBO']), epoch)
 
             # save a dump of all sentences and the encoded latent space
-            if split == 'valid':
+            if 'valid' in split:
                 dump = {'target_sents': tracker['target_sents'], 'z': tracker['z'].tolist()}
                 if not os.path.exists(os.path.join('dumps', ts)):
                     os.makedirs('dumps/'+ts)
@@ -172,7 +172,7 @@ def main(args):
                     json.dump(dump,dump_file)
 
             # save checkpoint
-            if split == 'train':
+            if 'train' in split:
                 checkpoint_path = os.path.join(save_model_path, "E%i.pytorch" % epoch)
                 torch.save(model.state_dict(), checkpoint_path)
                 print("Model saved at %s" % checkpoint_path)

@@ -19,9 +19,26 @@ class PTB(Dataset):
         self.max_sequence_length = kwargs.get('max_sequence_length', 50)
         self.min_occ = kwargs.get('min_occ', 3)
 
-        self.raw_data_path = os.path.join(data_dir, 'ptb.'+split+'.txt')
+        self.raw_data_path = os.path.join(data_dir, 'ptb'+'.txt')
         self.data_file = 'ptb.'+split+'.json'
         self.vocab_file = 'ptb.vocab.json'
+
+        model_type, datatype = tuple(split.split("_"))
+        data_split = {
+            "target": {
+                "train": [0, 10000],
+                "valid": [10000, 13000]
+                    },
+            "shadow": {
+                "train": [13000, 23000],
+                "valid": [23000, 26000]
+            },
+            "reference": {
+                "train": [26000, 36000],
+                "valid": [36000, 39000]
+            }
+        }
+        self.start_idx, self.end_idx = tuple(data_split[model_type][datatype])
 
         if create_data:
             print("Creating new %s ptb data."%split.upper())
@@ -91,7 +108,7 @@ class PTB(Dataset):
 
     def _create_data(self):
 
-        if self.split == 'train':
+        if 'train' in self.split:
             self._create_vocab()
         else:
             self._load_vocab()
@@ -100,8 +117,8 @@ class PTB(Dataset):
 
         data = defaultdict(dict)
         with open(self.raw_data_path, 'r') as file:
-
-            for i, line in enumerate(file):
+            lines = file.read().splitlines()[self.start_idx:self.end_idx]
+            for i, line in enumerate(lines):
 
                 words = tokenizer.tokenize(line)
 
@@ -133,7 +150,7 @@ class PTB(Dataset):
 
     def _create_vocab(self):
 
-        assert self.split == 'train', "Vocablurary can only be created for training file."
+        assert 'train' in self.split, "Vocablurary is created for all files."
 
         tokenizer = TweetTokenizer(preserve_case=False)
 
