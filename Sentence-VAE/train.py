@@ -16,7 +16,7 @@ from model import SentenceVAE
 
 def main(args):
     ts = time.strftime('%Y-%b-%d-%H:%M:%S', time.gmtime())
-    model_type = "target"
+    model_type = "shadow"
     splits = [model_type+'_train', model_type+'_valid'] + (['test'] if args.test else [])
 
     datasets = OrderedDict()
