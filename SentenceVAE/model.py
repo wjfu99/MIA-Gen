@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.utils.rnn as rnn_utils
-from utils import to_var
+from .utils import to_var
 
 
 class SentenceVAE(nn.Module):
