@@ -7,7 +7,7 @@ from collections import defaultdict
 from torch.utils.data import Dataset
 from nltk.tokenize import TweetTokenizer
 
-from utils import OrderedCounter
+from .utils import OrderedCounter
 
 class PTB(Dataset):
 

@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
 from torchvision.transforms import ToPILImage
-from attack.attack_model import AttackModel
+from attack.attack_model_text import AttackModel
 from SentenceVAE.model import SentenceVAE
 from SentenceVAE.ptb import PTB
 from collections import OrderedDict

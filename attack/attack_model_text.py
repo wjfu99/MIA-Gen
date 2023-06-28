@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.nn import functional as F
+from torch.utils.data import DataLoader
 import sklearn.metrics as metrics
 import numpy as np
 import pickle as pkl
@@ -14,6 +15,8 @@ from sklearn.metrics import roc_auc_score, roc_curve, auc, precision_recall_curv
 from itertools import cycle
 import torchvision.datasets as datasets
 import matplotlib.pyplot as plt
+from copy import deepcopy, copy
+import random
 
 logger = logging.getLogger(__name__)
 console = logging.StreamHandler()
@@ -23,6 +26,8 @@ logger.addHandler(console)
 logger.setLevel(logging.INFO)
 
 PATH = os.getcwd()
+
+NLL = torch.nn.NLLLoss(ignore_index=0, reduction='none')
 
 class MLAttckerModel(nn.Module):
     def __init__(self, input_size, hidden_size=128, output_size=2):
@@ -53,20 +58,76 @@ class AttackModel:
         ori_class = model.__class__
         ori_class.loss_function = self.loss_function
 
+    @staticmethod
+    def loss_fn(logp, target, length, mean, logv):
+        # cut-off unnecessary padding from target, and flatten
+        target = target[:, :torch.max(length).item()].contiguous().view(-1)
+        logp = logp.view(-1, logp.size(2))
+
+        # Negative Log Likelihood
+        NLL_loss = NLL(logp, target)
+        NLL_loss = NLL_loss.reshape(100, -1).sum(-1) # TODO: The loss function may should not use sum.
+        # KL Divergence
+        KL_loss = -0.5 * (1 + logv - mean.pow(2) - logv.exp()).sum(-1)
+        KL_weight = 0.5 # TODO: an variational value.
+
+        loss = NLL_loss + KL_loss * KL_weight
+
+        return loss
+
     def generative_model_eval(self, model, input, batch_size=100):
-        input = input.cuda()
-        num_inputs = input.shape[0]
         outputs = []
         model.eval()
 
-        for i in range(0, num_inputs, batch_size):
-            input_batch = input[i:i + batch_size]
-            input_dict = {"data": input_batch}
-            output_batch = self.output_reformat(model(input_dict)).loss
-            outputs.append(output_batch)
+        data_loader = DataLoader(
+            dataset=input,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=32,
+            pin_memory=torch.cuda.is_available()
+        )
+
+        for iteration, batch in enumerate(data_loader):
+            batch_size = batch['input'].size(0)
+            for k, v in batch.items():
+                if torch.is_tensor(v):
+                    batch[k] = v.cuda()
+            # Forward pass
+            logp, mean, logv, z = model(batch['input'], batch['length'])
+            # loss calculation
+            loss = self.loss_fn(logp, batch['target'], batch['length'], mean, logv)
+            outputs.append(utils.tensor_to_ndarray(loss)[0])
         output = np.concatenate(outputs, axis=0)
         return output
 
+    @staticmethod
+    def sentence_perturb(dataset, embedding, rate=0.1): #  TODO: whether the perturb number should be identical for sentences with different length?
+        per_dataset = deepcopy(dataset)
+        sim = torch.mm(embedding, embedding.T)
+        prop = F.softmax(sim.fill_diagonal_(float('-inf')), dim=1).cpu().numpy()
+        for idx in range(len(per_dataset)):
+            ori_data = per_dataset[idx]
+            sen_len = ori_data["length"]
+            ori_sen = ori_data["input"][1:sen_len]
+            per_sen = []
+            for word in ori_sen:
+                assert word not in [0, 2, 3]
+                if random.random() < rate:
+                    per_word = int(np.random.choice(len(prop[word, :]), p=prop[word, :]))
+                    per_sen.append(per_word)
+                else:
+                    per_sen.append(word)
+            input_sen = [2] + per_sen
+            input_sen.extend([0]*(60-sen_len))
+            target_sen = per_sen + [3]
+            target_sen.extend([0]*(60-sen_len))
+            per_data = {
+                "input": input_sen,
+                "target": target_sen,
+                "length": sen_len
+            }
+            per_dataset.data[str(idx)] = per_data
+        return per_dataset
     def eval_perturb(self, model, dataset, per_num=101, calibration=True):
         """
         Evaluate the loss of the perturbed data
@@ -78,12 +139,12 @@ class AttackModel:
         ref_per_losses = []
         model.eval()
         # revising some original methods of target model.
-        self.target_model_revision(model)
+        # self.target_model_revision(model)
         ori_losses = self.generative_model_eval(model, dataset)
         if calibration:
             ref_ori_losses = self.generative_model_eval(self.reference_model, dataset)
         for _ in tqdm(range(per_num)):
-            per_dataset = self.gaussian_noise_tensor(dataset, 0, 0.1)
+            per_dataset = self.sentence_perturb(dataset, model.embedding.weight.detach(), rate=0.1)
             per_loss = self.generative_model_eval(model, per_dataset)
             per_losses.append(per_loss[:, None])
             if calibration:
@@ -115,25 +176,36 @@ class AttackModel:
 
     def gen_data_vae(self, model, sample_numbers=3000, batch_size=100):  # TODO: sample without the fit function.
         model.eval()
-        z_dim = model.latent_dim
         generated_samples = []
         with torch.no_grad():
             for i in range(0, sample_numbers, batch_size):
-                z = torch.normal(0, 1, size=(batch_size, z_dim)).cuda()
-                gen = model.decoder(z)["reconstruction"]
+                gen, z = model.inference(n=batch_size)
                 gen = utils.tensor_to_ndarray(gen)[0]
                 generated_samples.append(gen)
         gens = np.concatenate(generated_samples, axis=0)
-        gens = torch.from_numpy(gens).float()
-        return gens
+        data = {}
+        for n, sen in enumerate(gens):
+            if sen[-1] not in [0, 3]:
+                sen[-1] = 3
+            input_sen = np.concatenate(([2], sen))
+            input_sen = input_sen[input_sen != 3]
+            target_sen = sen
+            length = np.argwhere(sen==3)[0][0] + 1
+            data[str(n)] = {
+                "input": list(input_sen.astype(np.int)),
+                "target": list(target_sen.astype(np.int)),
+                "length": int(length)
+            }
+        dataset = deepcopy(self.datasets['target' + '_' + 'valid'])
+        dataset.data = data
+        return dataset
 
-    def data_prepare(self, kind, path="attack/attack_data", calibration=True):
+    def data_prepare(self, kind, path="attack/attack_data_text", calibration=True):
         logger.info("Preparing data...")
         data_path = os.path.join(PATH, path)
         target_model = getattr(self, kind + "_model")
-        reference_model = self.reference_model
-        mem_data = self.datasets[kind]['mem']
-        nonmem_data = self.datasets[kind]['nonmem']
+        mem_data = self.datasets[kind+'_'+'train']
+        nonmem_data = self.datasets[kind+'_'+'valid']
         if calibration:
             mem_path = os.path.join(data_path, kind, "cali", "mem_feat.npz")
             nonmem_path = os.path.join(data_path, kind, "cali", "nonmen_feat.npz")
@@ -220,13 +292,8 @@ class AttackModel:
         return feat, ground_truth
 
     def attack_model_training(self, epoch_num=50, load_trained=True, ):
-        # target_model = self.shadow_model
-        #
-        # mem_data = self.datasets['shadow']['mem']
-        # nonmem_data = self.datasets['shadow']['nonmem']
-        # mem_dist = self.eval_perturb(target_model, mem_data).per_losses
-        # nonmen_dist = self.eval_perturb(target_model, nonmem_data).per_losses
-        save_path = os.path.join(PATH, "attack/attack_model", 'attack_model.pth')
+
+        save_path = os.path.join(PATH, "attack/attack_model_text", 'attack_model.pth')
 
         raw_info = self.data_prepare(kind="shadow", calibration=True)
         feat, ground_truth = self.feat_prepare(raw_info)
