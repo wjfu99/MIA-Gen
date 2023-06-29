@@ -219,7 +219,7 @@ class AttackModel:
                                   torch.ones(gen_feat.shape[0])*2]).type(torch.LongTensor).cuda()
         return feat, ground_truth
 
-    def attack_model_training(self, epoch_num=50, load_trained=True, ):
+    def attack_model_training(self, epoch_num=100, load_trained=True, ):
         # target_model = self.shadow_model
         #
         # mem_data = self.datasets['shadow']['mem']
@@ -290,6 +290,7 @@ class AttackModel:
         fpr["micro"], tpr["micro"], _ = roc_curve(y_true.ravel(), y_scores.ravel())
         roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
         logger.info(f"Auc on the target model: {roc_auc['micro']}")
+        class_name = ["Member", "Non-Member", "Generative"]
         if plot:
             # Plot AUC curves for each class
             plt.figure()
@@ -297,11 +298,11 @@ class AttackModel:
             colors = cycle(['red', 'darkorange', 'green'])
             for i, color in zip(range(n_classes), colors):
                 plt.plot(fpr[i], tpr[i], color=color, lw=lw,
-                         label='ROC curve of class {0} (AUC = {1:0.2f})'.format(i, roc_auc[i]))
+                         label='ROC curve on {0} data (AUC = {1:0.2f})'.format(class_name[i], roc_auc[i]))
 
             # Plot the micro-average ROC curve
             plt.plot(fpr["micro"], tpr["micro"], color='green', linestyle=':', linewidth=4,
-                     label='micro-average ROC curve (AUC = {0:0.2f})'
+                     label='Overall ROC curve (AUC = {0:0.2f})'
                            ''.format(roc_auc["micro"]))
 
             # Plot the randomized ROC curve
@@ -310,7 +311,7 @@ class AttackModel:
             plt.ylim([0.0, 1.05])
             plt.xlabel('False Positive Rate')
             plt.ylabel('True Positive Rate')
-            plt.title('Receiver Operating Characteristic of multiclass classifier')
+            plt.title('Discriminative Performance on Different Categories of Data.')
             plt.legend(loc="lower right")
             plt.show()
 
