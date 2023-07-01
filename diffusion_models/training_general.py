@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import ProjectConfiguration
-from datasets import load_dataset
+from datasets import load_dataset, Dataset, Image
 from huggingface_hub import HfFolder, Repository, create_repo, whoami
 from packaging import version
 from torchvision import transforms
@@ -50,6 +50,18 @@ def _extract_into_tensor(arr, timesteps, broadcast_shape):
     while len(res.shape) < len(broadcast_shape):
         res = res[..., None]
     return res.expand(broadcast_shape)
+
+def get_file_names(folder_path):
+    # List to store the file names
+    file_names = []
+
+    # Loop through each file in the folder
+    for file_name in sorted(os.listdir(folder_path)):
+        # Check if the current item is a file
+        if os.path.isfile(os.path.join(folder_path, file_name)):
+            file_names.append(os.path.join(folder_path, file_name))
+
+    return file_names
 
 
 def parse_args():
@@ -455,7 +467,10 @@ def main(args):
             split="train",
         )
     else:
-        dataset = load_dataset("imagefolder", data_dir=args.train_data_dir, cache_dir=args.cache_dir, split="train")
+        files = get_file_names(args.train_data_dir)
+        dataset = datasets.Dataset.from_dict({"image": files}).cast_column("image", Image())
+        dataset = Dataset.from_dict(dataset[0:10000])
+        # dataset = load_dataset("imagefolder", data_dir=args.train_data_dir, cache_dir=args.cache_dir, split="train")
         # See more about loading custom images at
         # https://huggingface.co/docs/datasets/v2.4.0/en/image_load#imagefolder
 
@@ -637,7 +652,7 @@ def main(args):
         accelerator.wait_for_everyone()
 
         # Generate sample images for visual inspection
-        if accelerator.is_main_process:
+        if accelerator.is_main_process: ## TODO: maybe we should add evaluation phase in there. (avoid overfitting)
             if epoch % args.save_images_epochs == 0 or epoch == args.num_epochs - 1:
                 unet = accelerator.unwrap_model(model)
 

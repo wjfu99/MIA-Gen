@@ -38,7 +38,7 @@ dataset = Dataset.from_dict({"image": files}).cast_column("image", Image())
 end_time = time.time()
 times = start_time - end_time
 
-
+flower_dataset = load_dataset("huggan/flowers-102-categories", split="train")
 #
 # dataset = Dataset.from_dict({"image": ["/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/training",
 #                                        "/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/testing",
