@@ -469,7 +469,7 @@ def main(args):
     else:
         files = get_file_names(args.train_data_dir)
         dataset = datasets.Dataset.from_dict({"image": files}).cast_column("image", Image())
-        dataset = Dataset.from_dict(dataset[0:10000])
+        dataset = Dataset.from_dict(dataset[100000:110000])
         # dataset = load_dataset("imagefolder", data_dir=args.train_data_dir, cache_dir=args.cache_dir, split="train")
         # See more about loading custom images at
         # https://huggingface.co/docs/datasets/v2.4.0/en/image_load#imagefolder
