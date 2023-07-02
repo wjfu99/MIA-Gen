@@ -13,11 +13,14 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
 from torchvision.transforms import ToPILImage
-from attack.attack_model_text import AttackModel
+from torchvision import transforms
+from attack.attack_model_diffusion import AttackModel
 from SentenceVAE.model import SentenceVAE
 from SentenceVAE.ptb import PTB
 from diffusers import DiffusionPipeline
+from datasets import Image, Dataset
 from collections import OrderedDict
+from attack import utils
 import json
 
 logger = logging.getLogger(__name__)
@@ -32,38 +35,50 @@ PATH = os.path.dirname(os.path.abspath(__file__))
 os.system('nvidia-smi -q -d Memory |grep -A5 GPU|grep Free >tmp')
 memory_available = [int(x.split()[2]) for x in open('tmp', 'r').readlines()]
 os.environ["CUDA_VISIBLE_DEVICES"] = str(np.argmax(memory_available))
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda" + ":" + str(np.argmax(memory_available))
+torch.cuda.set_device(device)
 
 
 ## Load text generation model.
 
 target_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-target')
-target_model = DiffusionPipeline.from_pretrained(target_path)
+target_model = DiffusionPipeline.from_pretrained(target_path).to(device)
 
 
 shadow_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-shadow')
-shadow_model = DiffusionPipeline.from_pretrained(shadow_path)
+shadow_model = DiffusionPipeline.from_pretrained(shadow_path).to(device)
 
 reference_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-reference')
-reference_model = DiffusionPipeline.from_pretrained(reference_path)
+reference_model = DiffusionPipeline.from_pretrained(reference_path).to(device)
 
 logger.info("Successfully loaded models!")
 
 # Load datasets
-splits = []
-for model_type in ["target", "shadow", "reference"]:
-    for data_type in ["train", "valid"]:
-        splits.append(model_type+"_"+data_type)
+# splits = []
+# for model_type in ["target", "shadow", "reference"]:
+#     for data_type in ["train", "valid"]:
+#         splits.append(model_type+"_"+data_type)
 
-datasets = OrderedDict()
-for split in splits:
-    datasets[split] = PTB(
-        data_dir="SentenceVAE/data",
-        split=split,
-        create_data=False,
-        max_sequence_length=60,
-        min_occ=1
-    )
+files = utils.get_file_names("/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/total")
+all_dataset = Dataset.from_dict({"image": files}).cast_column("image", Image())
+
+
+
+
+datasets = {
+    "target": {
+        "train": Dataset.from_dict(all_dataset[0:10000]),
+        "valid": Dataset.from_dict(all_dataset[10000:13000])
+            },
+    "shadow": {
+        "train": Dataset.from_dict(all_dataset[100000:110000]),
+        "valid": Dataset.from_dict(all_dataset[110000:113000])
+    },
+    "reference": {
+        "train": Dataset.from_dict(all_dataset[150000:160000]),
+        "valid": Dataset.from_dict(all_dataset[160000:163000])
+    }
+}
 
 attack_model = AttackModel(target_model, datasets, reference_model, shadow_model)
 attack_model.attack_model_training()

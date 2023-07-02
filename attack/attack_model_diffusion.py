@@ -13,10 +13,11 @@ from attack import utils
 from attack.utils import Dict
 from sklearn.metrics import roc_auc_score, roc_curve, auc, precision_recall_curve, f1_score
 from itertools import cycle
-import torchvision.datasets as datasets
 import matplotlib.pyplot as plt
 from copy import deepcopy, copy
 import random
+import time
+from torchvision import transforms
 
 logger = logging.getLogger(__name__)
 console = logging.StreamHandler()
@@ -29,7 +30,7 @@ PATH = os.getcwd()
 
 NLL = torch.nn.NLLLoss(ignore_index=0, reduction='none')
 
-class MLAttckerModel(nn.Module):
+class MLAttckerModel(nn.Module): # TODO: we can use a CNN model for attack
     def __init__(self, input_size, hidden_size=128, output_size=2):
         super(MLAttckerModel, self).__init__()
         self.input_layer = nn.Linear(input_size, hidden_size)
@@ -75,10 +76,9 @@ class AttackModel:
 
         return loss
 
-    def generative_model_eval(self, model, input, batch_size=100):
+    def generative_model_eval(self, model, input, batch_size=50, diffusion_sample_number=10):
         outputs = []
-        model.eval()
-
+        input.set_transform(utils.transform_images)
         data_loader = DataLoader(
             dataset=input,
             batch_size=batch_size,
@@ -86,48 +86,31 @@ class AttackModel:
             num_workers=32,
             pin_memory=torch.cuda.is_available()
         )
+        pipeline = model
+        model = pipeline.unet
+        model.eval()
+        noise_scheduler = pipeline.scheduler
+        diffusion_steps = noise_scheduler.config.num_train_timesteps
+        interval = diffusion_steps // diffusion_sample_number
 
         for iteration, batch in enumerate(data_loader):
-            batch_size = batch['input'].size(0)
-            for k, v in batch.items():
-                if torch.is_tensor(v):
-                    batch[k] = v.cuda()
-            # Forward pass
-            logp, mean, logv, z = model(batch['input'], batch['length'])
-            # loss calculation
-            loss = self.loss_fn(logp, batch['target'], batch['length'], mean, logv)
-            outputs.append(utils.tensor_to_ndarray(loss)[0])
+            clean_images = batch["input"].cuda()
+            batch_loss = np.zeros((batch_size, diffusion_sample_number))
+            start_time = time.time()
+            for i, timestep in enumerate(range(0, diffusion_steps, interval)):
+                noise = torch.randn(clean_images.shape, device=clean_images.device)
+                timesteps = torch.full((batch_size,), timestep, device=clean_images.device)
+                noise_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
+                model_output = model(noise_images, timesteps).sample
+                loss = F.mse_loss(model_output, noise, reduction="none")
+                loss = torch.mean(loss, dim=(1, 2, 3))
+                loss = utils.tensor_to_ndarray(loss)[0]
+                batch_loss[:, i] = loss
+            print(f"time duration: {time.time() - start_time}s")
+            outputs.append(batch_loss)
         output = np.concatenate(outputs, axis=0)
         return output
 
-    @staticmethod
-    def sentence_perturb(dataset, embedding, rate=0.1): #  TODO: whether the perturb number should be identical for sentences with different length?
-        per_dataset = deepcopy(dataset)
-        sim = torch.mm(embedding, embedding.T)
-        prop = F.softmax(sim.fill_diagonal_(float('-inf')), dim=1).cpu().numpy()
-        for idx in range(len(per_dataset)):
-            ori_data = per_dataset[idx]
-            sen_len = ori_data["length"]
-            ori_sen = ori_data["input"][1:sen_len]
-            per_sen = []
-            for word in ori_sen:
-                assert word not in [0, 2, 3]
-                if random.random() < rate:
-                    per_word = int(np.random.choice(len(prop[word, :]), p=prop[word, :]))
-                    per_sen.append(per_word)
-                else:
-                    per_sen.append(word)
-            input_sen = [2] + per_sen
-            input_sen.extend([0]*(60-sen_len))
-            target_sen = per_sen + [3]
-            target_sen.extend([0]*(60-sen_len))
-            per_data = {
-                "input": input_sen,
-                "target": target_sen,
-                "length": sen_len
-            }
-            per_dataset.data[str(idx)] = per_data
-        return per_dataset
     def eval_perturb(self, model, dataset, per_num=101, calibration=True):
         """
         Evaluate the loss of the perturbed data
@@ -137,14 +120,13 @@ class AttackModel:
         """
         per_losses = []
         ref_per_losses = []
-        model.eval()
         # revising some original methods of target model.
         # self.target_model_revision(model)
         ori_losses = self.generative_model_eval(model, dataset)
         if calibration:
             ref_ori_losses = self.generative_model_eval(self.reference_model, dataset)
         for _ in tqdm(range(per_num)):
-            per_dataset = self.sentence_perturb(dataset, model.embedding.weight.detach(), rate=0.1)
+            per_dataset = self.image_dataset_perturbation(dataset, mean=0, std=0.1)
             per_loss = self.generative_model_eval(model, per_dataset)
             per_losses.append(per_loss[:, None])
             if calibration:
@@ -174,7 +156,7 @@ class AttackModel:
             )
         return output
 
-    def gen_data_vae(self, model, sample_numbers=3000, batch_size=100):  # TODO: sample without the fit function.
+    def gen_data_vae(self, model, sample_numbers=3000, batch_size=100):
         model.eval()
         generated_samples = []
         with torch.no_grad():
@@ -200,12 +182,12 @@ class AttackModel:
         dataset.data = data
         return dataset
 
-    def data_prepare(self, kind, path="attack/attack_data_text", calibration=True):
+    def data_prepare(self, kind, path="attack/attack_data_diffusion", calibration=True):
         logger.info("Preparing data...")
         data_path = os.path.join(PATH, path)
         target_model = getattr(self, kind + "_model")
-        mem_data = self.datasets[kind+'_'+'train']
-        nonmem_data = self.datasets[kind+'_'+'valid']
+        mem_data = self.datasets[kind]["train"]
+        nonmem_data = self.datasets[kind]["valid"]
         if calibration:
             mem_path = os.path.join(data_path, kind, "cali", "mem_feat.npz")
             nonmem_path = os.path.join(data_path, kind, "cali", "nonmen_feat.npz")
@@ -293,7 +275,7 @@ class AttackModel:
 
     def attack_model_training(self, epoch_num=100, load_trained=True, ):
 
-        save_path = os.path.join(PATH, "attack/attack_model_text", 'attack_model.pth')
+        save_path = os.path.join(PATH, "attack/attack_model_diffusion", 'attack_model.pth')
 
         raw_info = self.data_prepare(kind="shadow", calibration=True)
         feat, ground_truth = self.feat_prepare(raw_info)
@@ -383,14 +365,59 @@ class AttackModel:
             plt.show()
 
     @staticmethod
-    def gaussian_noise_tensor(tensor, mean=0.0, std=0.1):
+    def sentence_perturb(dataset, embedding, rate=0.1): #  TODO: whether the perturb number should be identical for sentences with different length?
+        per_dataset = deepcopy(dataset)
+        sim = torch.mm(embedding, embedding.T)
+        prop = F.softmax(sim.fill_diagonal_(float('-inf')), dim=1).cpu().numpy()
+        for idx in range(len(per_dataset)):
+            ori_data = per_dataset[idx]
+            sen_len = ori_data["length"]
+            ori_sen = ori_data["input"][1:sen_len]
+            per_sen = []
+            for word in ori_sen:
+                assert word not in [0, 2, 3]
+                if random.random() < rate:
+                    per_word = int(np.random.choice(len(prop[word, :]), p=prop[word, :]))
+                    per_sen.append(per_word)
+                else:
+                    per_sen.append(word)
+            input_sen = [2] + per_sen
+            input_sen.extend([0]*(60-sen_len))
+            target_sen = per_sen + [3]
+            target_sen.extend([0]*(60-sen_len))
+            per_data = {
+                "input": input_sen,
+                "target": target_sen,
+                "length": sen_len
+            }
+            per_dataset.data[str(idx)] = per_data
+        return per_dataset
+
+
+    @staticmethod
+    def gaussian_noise_tensor(tensor, mean=0.0, std=0.4):
         # create a tensor of gaussian noise with the same shape as the input tensor
         noise = torch.randn(tensor.shape) * std + mean
         # add the noise to the original tensor
         noisy_tensor = tensor + noise
         # make sure the pixel values are within [0, 1]
-        noisy_tensor = torch.clamp(noisy_tensor, 0.0, 1.0)
+        noisy_tensor = torch.clamp(noisy_tensor, -1.0, 1.0)
         return noisy_tensor
+
+    def image_dataset_perturbation(self, dataset):
+        # create a tensor of gaussian noise with the same shape as the input tensor
+        perturbation = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize([0.5], [0.5]),
+            self.gaussian_noise_tensor,
+        ])
+        def transform_images(examples):
+            images = [perturbation(image.convert("RGB")) for image in examples["image"]]
+            return {"input": images}
+        per_dataset = deepcopy(dataset)
+        per_dataset.set_transform(transform_images)
+
+        return per_dataset
 
     @staticmethod
     def output_reformat(output_dict):

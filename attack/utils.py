@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from torchvision.transforms import ToPILImage
+from torchvision import transforms
 
 class Dict(dict):
     def __getattr__(self, name):
@@ -125,3 +126,31 @@ def show_image(image):
         axes.axis('off')
         plt.tight_layout(pad=0.)
         plt.show()
+
+def get_file_names(folder_path):
+    # List to store the file names
+    file_names = []
+
+    # Loop through each file in the folder
+    for file_name in sorted(os.listdir(folder_path)):
+        # Check if the current item is a file
+        if os.path.isfile(os.path.join(folder_path, file_name)):
+            file_names.append(os.path.join(folder_path, file_name))
+
+    return file_names
+
+
+# Preprocessing the datasets and DataLoaders creation.
+augmentations = transforms.Compose(
+    [
+        transforms.Resize(64, interpolation=transforms.InterpolationMode.BILINEAR),
+        transforms.CenterCrop(64) if True else transforms.RandomCrop(64),
+        transforms.RandomHorizontalFlip() if False else transforms.Lambda(lambda x: x),
+        transforms.ToTensor(),
+        transforms.Normalize([0.5], [0.5]),
+    ]
+)
+
+def transform_images(examples):
+    images = [augmentations(image.convert("RGB")) for image in examples["image"]]
+    return {"input": images}
