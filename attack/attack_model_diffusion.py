@@ -18,6 +18,7 @@ from copy import deepcopy, copy
 import random
 import time
 from torchvision import transforms
+from datasets import Image, Dataset
 
 logger = logging.getLogger(__name__)
 console = logging.StreamHandler()
@@ -96,7 +97,7 @@ class AttackModel:
         for iteration, batch in enumerate(data_loader):
             clean_images = batch["input"].cuda()
             batch_loss = np.zeros((batch_size, diffusion_sample_number))
-            start_time = time.time()
+            # start_time = time.time()
             for i, timestep in enumerate(range(0, diffusion_steps, interval)):
                 noise = torch.randn(clean_images.shape, device=clean_images.device)
                 timesteps = torch.full((batch_size,), timestep, device=clean_images.device)
@@ -106,7 +107,7 @@ class AttackModel:
                 loss = torch.mean(loss, dim=(1, 2, 3))
                 loss = utils.tensor_to_ndarray(loss)[0]
                 batch_loss[:, i] = loss
-            print(f"time duration: {time.time() - start_time}s")
+            # print(f"time duration: {time.time() - start_time}s")
             outputs.append(batch_loss)
         output = np.concatenate(outputs, axis=0)
         return output
@@ -126,17 +127,17 @@ class AttackModel:
         if calibration:
             ref_ori_losses = self.generative_model_eval(self.reference_model, dataset)
         for _ in tqdm(range(per_num)):
-            per_dataset = self.image_dataset_perturbation(dataset, mean=0, std=0.1)
+            per_dataset = self.image_dataset_perturbation(dataset)
             per_loss = self.generative_model_eval(model, per_dataset)
-            per_losses.append(per_loss[:, None])
+            per_losses.append(per_loss[:, :, None])
             if calibration:
                 ref_per_loss = self.generative_model_eval(self.reference_model, per_dataset)
-                ref_per_losses.append(ref_per_loss[:, None])
-        per_losses = np.concatenate(per_losses, axis=1)
-        var_losses = per_losses - ori_losses[:, None]
+                ref_per_losses.append(ref_per_loss[:, :, None])
+        per_losses = np.concatenate(per_losses, axis=2)
+        var_losses = per_losses - ori_losses[:, :, None]
         if calibration:
-            ref_per_losses = np.concatenate(ref_per_losses, axis=1)
-            ref_var_losses = ref_per_losses - ref_ori_losses[:, None]
+            ref_per_losses = np.concatenate(ref_per_losses, axis=2)
+            ref_var_losses = ref_per_losses - ref_ori_losses[:, :, None]
         if calibration:
             output = (Dict(
                 per_losses=per_losses,
@@ -156,30 +157,17 @@ class AttackModel:
             )
         return output
 
-    def gen_data_vae(self, model, sample_numbers=3000, batch_size=100):
-        model.eval()
+    def gen_data_diffusion(self, model, img_path, sample_numbers=1000, batch_size=100, path="attack/attack_data_diffusion"):
+        pipeline = model
         generated_samples = []
-        with torch.no_grad():
-            for i in range(0, sample_numbers, batch_size):
-                gen, z = model.inference(n=batch_size)
-                gen = utils.tensor_to_ndarray(gen)[0]
-                generated_samples.append(gen)
-        gens = np.concatenate(generated_samples, axis=0)
-        data = {}
-        for n, sen in enumerate(gens):
-            if sen[-1] not in [0, 3]:
-                sen[-1] = 3
-            input_sen = np.concatenate(([2], sen))
-            input_sen = input_sen[input_sen != 3]
-            target_sen = sen
-            length = np.argwhere(sen==3)[0][0] + 1
-            data[str(n)] = {
-                "input": list(input_sen.astype(np.int)),
-                "target": list(target_sen.astype(np.int)),
-                "length": int(length)
-            }
-        dataset = deepcopy(self.datasets['target' + '_' + 'valid'])
-        dataset.data = data
+        for i in range(0, sample_numbers, batch_size):
+            gen = pipeline(batch_size).images
+            generated_samples.extend(gen)
+        utils.create_folder(img_path)
+        for i, img in enumerate(generated_samples):
+            img.save(img_path + f"/{i}.jpg")
+        files = utils.get_file_names(img_path)
+        dataset = Dataset.from_dict({"image": files}).cast_column("image", Image())
         return dataset
 
     def data_prepare(self, kind, path="attack/attack_data_diffusion", calibration=True):
@@ -192,6 +180,7 @@ class AttackModel:
             mem_path = os.path.join(data_path, kind, "cali", "mem_feat.npz")
             nonmem_path = os.path.join(data_path, kind, "cali", "nonmen_feat.npz")
             gen_path = os.path.join(data_path, kind, "cali", "gen_feat.npz")
+            img_path = os.path.join(data_path, kind, "cali", "gen_img")
             ref_mem_path = os.path.join(data_path, kind, "cali", "ref_mem_feat.npz")
             ref_nonmem_path = os.path.join(data_path, kind, "cali", "ref_nonmen_feat.npz")
             ref_gen_path = os.path.join(data_path, kind, "cali", "ref_gen_feat.npz")
@@ -202,19 +191,22 @@ class AttackModel:
             if calibration:
                 logger.info("Generating feature vectors for memory data...")
                 mem_feat, ref_mem_feat = self.eval_perturb(target_model, mem_data, calibration=calibration)
+                utils.save_dict_to_npz(mem_feat, mem_path)
+                utils.save_dict_to_npz(ref_mem_feat, ref_mem_path)
+
                 logger.info("Generating feature vectors for non-memory data...")
                 nonmem_feat, ref_nonmem_feat = self.eval_perturb(target_model, nonmem_data, calibration=calibration)
-                logger.info("Generating feature vectors for generative data...")
-                gen_data = self.gen_data_vae(target_model)
-                gen_feat, ref_gen_feat = self.eval_perturb(target_model, gen_data, calibration=calibration)
-
-                logger.info("Saving feature vectors...")
-                utils.save_dict_to_npz(mem_feat, mem_path)
                 utils.save_dict_to_npz(nonmem_feat, nonmem_path)
-                utils.save_dict_to_npz(gen_feat, gen_path)
-                utils.save_dict_to_npz(ref_mem_feat, ref_mem_path)
                 utils.save_dict_to_npz(ref_nonmem_feat, ref_nonmem_path)
+
+                logger.info("Generating feature vectors for generative data...")
+                gen_data = self.gen_data_diffusion(target_model, img_path)
+                gen_feat, ref_gen_feat = self.eval_perturb(target_model, gen_data, calibration=calibration)
+                utils.save_dict_to_npz(gen_feat, gen_path)
                 utils.save_dict_to_npz(ref_gen_feat, ref_gen_path)
+                logger.info("Saving feature vectors...")
+
+
             else:
                 logger.info("Generating feature vectors for memory data...")
                 mem_feat = self.eval_perturb(target_model, mem_data, calibration=calibration)
@@ -278,9 +270,9 @@ class AttackModel:
         save_path = os.path.join(PATH, "attack/attack_model_diffusion", 'attack_model.pth')
 
         raw_info = self.data_prepare(kind="shadow", calibration=True)
-        feat, ground_truth = self.feat_prepare(raw_info)
-
         eval_raw_info = self.data_prepare(kind="target", calibration=True)
+
+        feat, ground_truth = self.feat_prepare(raw_info)
         eval_feat, eval_ground_truth = self.feat_prepare(eval_raw_info)
 
         feature_dim = feat.shape[-1]
@@ -395,7 +387,7 @@ class AttackModel:
 
 
     @staticmethod
-    def gaussian_noise_tensor(tensor, mean=0.0, std=0.4):
+    def gaussian_noise_tensor(tensor, mean=0.0, std=0.2):
         # create a tensor of gaussian noise with the same shape as the input tensor
         noise = torch.randn(tensor.shape) * std + mean
         # add the noise to the original tensor

@@ -34,6 +34,14 @@ def check_files_exist(*file_paths):
     return True
 
 
+def create_folder(folder_path):
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+        print(f"Folder '{folder_path}' created.")
+    else:
+        print(f"Folder '{folder_path}' already exists.")
+
+
 def save_dict_to_npz(my_dict, file_path):
     """
     Saves a dictionary with ndarray values to an npz file.
