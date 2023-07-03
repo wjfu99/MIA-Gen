@@ -248,12 +248,16 @@ class AttackModel:
     def feat_prepare(self, info_dict):
         # mem_info = info_dict.mem_feat
         # ref_mem_info = info_dict.ref_mem_feat
-        mem_feat = info_dict.mem_feat.var_losses / info_dict.mem_feat.ori_losses[:, None]\
-                   - info_dict.ref_mem_feat.ref_var_losses / info_dict.ref_mem_feat.ref_ori_losses[:, None]
-        nonmem_feat = info_dict.nonmem_feat.var_losses / info_dict.nonmem_feat.ori_losses[:, None]\
-                   - info_dict.ref_nonmem_feat.ref_var_losses / info_dict.ref_nonmem_feat.ref_ori_losses[:, None]
-        gen_feat = info_dict.gen_feat.var_losses / info_dict.gen_feat.ori_losses[:, None] \
-                      - info_dict.ref_gen_feat.ref_var_losses / info_dict.ref_gen_feat.ref_ori_losses[:, None]
+        mem_feat = info_dict.mem_feat.var_losses / info_dict.mem_feat.ori_losses[:, :, None]\
+                   - info_dict.ref_mem_feat.ref_var_losses / info_dict.ref_mem_feat.ref_ori_losses[:, :, None]
+        nonmem_feat = info_dict.nonmem_feat.var_losses / info_dict.nonmem_feat.ori_losses[:, :, None]\
+                   - info_dict.ref_nonmem_feat.ref_var_losses / info_dict.ref_nonmem_feat.ref_ori_losses[:, :, None]
+        gen_feat = info_dict.gen_feat.var_losses / info_dict.gen_feat.ori_losses[:, :, None] \
+                      - info_dict.ref_gen_feat.ref_var_losses / info_dict.ref_gen_feat.ref_ori_losses[:, :, None]
+
+        mem_feat = mem_feat.mean(axis=1)
+        nonmem_feat = nonmem_feat.mean(axis=1)
+        gen_feat = gen_feat.mean(axis=1)
 
         mem_freq = self.frequency(mem_feat, split=100)
         nonmem_freq = self.frequency(nonmem_feat, split=100)
@@ -284,7 +288,7 @@ class AttackModel:
             return
         optimizer = optim.Adam(attack_model.parameters(), lr=0.001, weight_decay=0.0005)
         # schedular = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[])
-        weight = torch.Tensor([1.5, 3, 3]).cuda()
+        weight = torch.Tensor([1, 1, 1]).cuda()
         criterion = torch.nn.CrossEntropyLoss(weight=weight)
         print_freq = 10
         for i in range(epoch_num):
