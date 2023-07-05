@@ -255,9 +255,9 @@ class AttackModel:
         gen_feat = info_dict.gen_feat.var_losses / info_dict.gen_feat.ori_losses[:, :, None] \
                       - info_dict.ref_gen_feat.ref_var_losses / info_dict.ref_gen_feat.ref_ori_losses[:, :, None]
 
-        mem_feat = mem_feat.mean(axis=1)
-        nonmem_feat = nonmem_feat.mean(axis=1)
-        gen_feat = gen_feat.mean(axis=1)
+        mem_feat = mem_feat.max(axis=1)
+        nonmem_feat = nonmem_feat.max(axis=1)
+        gen_feat = gen_feat.max(axis=1)
 
         mem_freq = self.frequency(mem_feat, split=100)
         nonmem_freq = self.frequency(nonmem_feat, split=100)
