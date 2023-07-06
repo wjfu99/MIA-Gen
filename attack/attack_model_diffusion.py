@@ -158,7 +158,7 @@ class AttackModel:
             )
         return output
 
-    def gen_data_diffusion(self, model, img_path, sample_numbers=100, batch_size=100, path="attack/attack_data_diffusion"):
+    def gen_data_diffusion(self, model, img_path, sample_numbers=1000, batch_size=100, path="attack/attack_data_diffusion"):
         pipeline = model
         generated_samples = []
         for i in range(0, sample_numbers, batch_size):

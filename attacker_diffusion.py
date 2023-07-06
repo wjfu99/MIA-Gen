@@ -67,16 +67,16 @@ all_dataset = Dataset.from_dict({"image": files}).cast_column("image", Image())
 
 datasets = {
     "target": {
-        "train": Dataset.from_dict(all_dataset[0:100]),
-        "valid": Dataset.from_dict(all_dataset[10000:10100])
+        "train": Dataset.from_dict(all_dataset[0:1000]),
+        "valid": Dataset.from_dict(all_dataset[10000:11000])
             },
     "shadow": {
-        "train": Dataset.from_dict(all_dataset[100000:100100]),
-        "valid": Dataset.from_dict(all_dataset[110000:110100])
+        "train": Dataset.from_dict(all_dataset[100000:101000]),
+        "valid": Dataset.from_dict(all_dataset[110000:111000])
     },
     "reference": {
-        "train": Dataset.from_dict(all_dataset[150000:150100]),
-        "valid": Dataset.from_dict(all_dataset[160000:160100])
+        "train": Dataset.from_dict(all_dataset[150000:151000]),
+        "valid": Dataset.from_dict(all_dataset[160000:161000])
     }
 }
 
