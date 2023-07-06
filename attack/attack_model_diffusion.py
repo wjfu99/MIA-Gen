@@ -79,7 +79,6 @@ class AttackModel:
 
     def generative_model_eval(self, model, input, batch_size=50, diffusion_sample_number=10):
         outputs = []
-        input.set_transform(utils.transform_images)
         data_loader = DataLoader(
             dataset=input,
             batch_size=batch_size,
@@ -123,9 +122,11 @@ class AttackModel:
         ref_per_losses = []
         # revising some original methods of target model.
         # self.target_model_revision(model)
-        ori_losses = self.generative_model_eval(model, dataset)
+        ori_dataset = deepcopy(dataset)
+        ori_dataset.set_transform(utils.transform_images)
+        ori_losses = self.generative_model_eval(model, ori_dataset)
         if calibration:
-            ref_ori_losses = self.generative_model_eval(self.reference_model, dataset)
+            ref_ori_losses = self.generative_model_eval(self.reference_model, ori_dataset)
         for _ in tqdm(range(per_num)):
             per_dataset = self.image_dataset_perturbation(dataset)
             per_loss = self.generative_model_eval(model, per_dataset)
@@ -157,7 +158,7 @@ class AttackModel:
             )
         return output
 
-    def gen_data_diffusion(self, model, img_path, sample_numbers=1000, batch_size=100, path="attack/attack_data_diffusion"):
+    def gen_data_diffusion(self, model, img_path, sample_numbers=100, batch_size=100, path="attack/attack_data_diffusion"):
         pipeline = model
         generated_samples = []
         for i in range(0, sample_numbers, batch_size):
@@ -269,7 +270,7 @@ class AttackModel:
                                   torch.ones(gen_feat.shape[0])*2]).type(torch.LongTensor).cuda()
         return feat, ground_truth
 
-    def attack_model_training(self, epoch_num=100, load_trained=True, ):
+    def attack_model_training(self, epoch_num=15, load_trained=False, ):
 
         save_path = os.path.join(PATH, "attack/attack_model_diffusion", 'attack_model.pth')
 
@@ -445,7 +446,7 @@ class AttackModel:
         return (recon_loss + KLD), recon_loss, KLD
 
     @staticmethod
-    def frequency(data, interval=(-1, 1), split=50):
+    def frequency(data, interval=(-1, 2.5), split=50):
         # Get the number of random variables
         C = data.shape[0]
 
