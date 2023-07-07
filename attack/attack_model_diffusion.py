@@ -377,15 +377,52 @@ class AttackModel:
         # Save model
         torch.save(attack_model.state_dict(), save_path)
     def conduct_attack(self, cfg):
-        if self.kind == 'ml':
+        if cfg["attack_kind"] == 'ml':
             assert self.is_model_training is True
             attack_model = self.attack_model
             raw_info = self.data_prepare("target", cfg)
             feat, ground_truth = self.feat_prepare(raw_info)
             predict = attack_model(feat)
             self.eval_attack(ground_truth, predict)
+        # elif cfg["attack_kind"] == 'stat':
             # dist = self.eval_perturb(self.target_model, target_samples).pre_losses
             # predict = self.ml_model(feat)
+    def attack_demo(self, cfg, pipeline, timestep=100):
+        mem_data = self.datasets["target"]["train"]
+        nonmem_data = self.datasets["target"]["valid"]
+        mem_data.set_transform(utils.transform_images)
+        nonmem_data.set_transform(utils.transform_images)
+        ddpm_score = []
+        ddim_score = []
+        for dataset in [mem_data, nonmem_data]:
+            data_loader = DataLoader(
+                dataset=dataset,
+                batch_size=cfg["eval_batch_size"],
+                shuffle=False,
+                num_workers=32,
+                pin_memory=torch.cuda.is_available()
+            )
+            ddpm_result = []
+            ddim_result = []
+            for iteration, batch in enumerate(data_loader):
+                clean_images = batch["input"].cuda()
+                # start_time = time.time()
+                ddpm_loss = self.ddpm_loss(pipeline, clean_images, timestep)
+                ddim_loss = self.ddim_loss(pipeline, clean_images, t_sec=timestep)
+                ddpm_result.append(ddpm_loss)
+                ddim_result.append(ddim_loss)
+            ddpm_result = np.concatenate(ddpm_result, axis=0)
+            ddim_result = np.concatenate(ddim_result, axis=0)
+            ddpm_score.append(ddpm_result)
+            ddim_score.append(ddim_result)
+        label = np.concatenate([np.zeros(mem_data.shape[0]), np.ones(nonmem_data.shape[0])]).astype(np.int)
+        # label = torch.cat([torch.zeros(mem_data.shape[0]), torch.ones(nonmem_data.shape[0])]).type(torch.LongTensor).cuda()
+        ddim_score = np.concatenate(ddim_score, axis=0)
+        ddpm_score = np.concatenate(ddpm_score, axis=0)
+        self.eval_attack(label, ddim_score)  # function eval_attack needs to be revised.
+        self.eval_attack(label, ddpm_score)
+
+
 
     @staticmethod
     def eval_attack(y_true, y_scores, plot=True):

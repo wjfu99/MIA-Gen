@@ -4,19 +4,9 @@ import torch
 import pythae
 import torch.nn.functional as F
 import logging
-from imageio import imwrite
-from pythae.models import AutoModel
-from pythae.samplers import NormalSampler
-from sklearn.metrics import roc_auc_score, roc_curve, auc, precision_recall_curve, f1_score
-import torchvision.datasets as datasets
-import matplotlib.pyplot as plt
-import seaborn as sns
-from tqdm import tqdm
-from torchvision.transforms import ToPILImage
-from torchvision import transforms
+
 from attack.attack_model_diffusion import AttackModel
-from SentenceVAE.model import SentenceVAE
-from SentenceVAE.ptb import PTB
+
 from diffusers import DiffusionPipeline
 from datasets import Image, Dataset
 from collections import OrderedDict
@@ -85,5 +75,6 @@ datasets = {
 }
 
 attack_model = AttackModel(target_model, datasets, reference_model, shadow_model, cfg=cfg)
+attack_model.attack_demo(cfg, target_model)
 attack_model.attack_model_training(cfg=cfg)
 attack_model.conduct_attack(cfg=cfg)
