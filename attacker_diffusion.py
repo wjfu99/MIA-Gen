@@ -22,6 +22,10 @@ from datasets import Image, Dataset
 from collections import OrderedDict
 from attack import utils
 import json
+import yaml
+
+with open("configs/config.yaml", 'r') as f:
+    cfg = yaml.safe_load(f)
 
 logger = logging.getLogger(__name__)
 console = logging.StreamHandler()
@@ -80,6 +84,6 @@ datasets = {
     }
 }
 
-attack_model = AttackModel(target_model, datasets, reference_model, shadow_model)
-attack_model.attack_model_training()
-attack_model.conduct_attack()
+attack_model = AttackModel(target_model, datasets, reference_model, shadow_model, cfg=cfg)
+attack_model.attack_model_training(cfg=cfg)
+attack_model.conduct_attack(cfg=cfg)

@@ -46,11 +46,11 @@ class MLAttckerModel(nn.Module): # TODO: we can use a CNN model for attack
 
 
 class AttackModel:
-    def __init__(self, target_model, datasets, reference_model=None, shadow_model=None, kind="ml"):
+    def __init__(self, target_model, datasets, reference_model, shadow_model, cfg):
         self.target_model = target_model
         self.datasets = datasets
-        self.kind = kind
-        if shadow_model is not None and kind == "ml":
+        self.kind = cfg['attack_kind']
+        if shadow_model is not None and cfg['attack_kind'] == "ml":
             self.shadow_model = shadow_model
             self.is_model_training = False
         if reference_model is not None:
@@ -76,12 +76,80 @@ class AttackModel:
         loss = NLL_loss + KL_loss * KL_weight
 
         return loss
+    @staticmethod
+    def ddpm_loss(pipeline, clean_images, timestep):
+        model = pipeline.unet
+        model.eval()
+        noise_scheduler = pipeline.scheduler
+        noise = torch.randn(clean_images.shape, device=clean_images.device)
+        timesteps = torch.full((clean_images.shape[0],), timestep, device=clean_images.device)
+        noise_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
+        model_output = model(noise_images, timesteps).sample
+        loss = F.mse_loss(model_output, noise, reduction="none")
+        loss = torch.mean(loss, dim=(1, 2, 3))
+        loss = utils.tensor_to_ndarray(loss)[0]
+        return loss
 
-    def generative_model_eval(self, model, input, batch_size=50, diffusion_sample_number=10):
+
+    @staticmethod
+    def ddim_singlestep(pipeline, x, t_c, t_target):
+        model = pipeline.unet
+        model.eval()
+        noise_scheduler = pipeline.scheduler
+        x = x.cuda()
+
+        t_c = x.new_ones([x.shape[0], ], dtype=torch.long) * (t_c)
+        t_target = x.new_ones([x.shape[0], ], dtype=torch.long) * (t_target)
+
+        # betas = torch.linspace(FLAGS.beta_1, FLAGS.beta_T, FLAGS.T).double().cuda()
+        betas = noise_scheduler.betas.cuda()
+        alphas = 1. - betas
+        alphas = torch.cumprod(alphas, dim=0)
+
+        alphas_t_c = utils.extract(alphas, t=t_c, x_shape=x.shape)
+        alphas_t_target = utils.extract(alphas, t=t_target, x_shape=x.shape)
+
+        with torch.no_grad():
+            epsilon = model(x, t_c).sample
+
+        pred_x_0 = (x - ((1 - alphas_t_c).sqrt() * epsilon)) / (alphas_t_c.sqrt())
+        x_t_target = alphas_t_target.sqrt() * pred_x_0 \
+                     + (1 - alphas_t_target).sqrt() * epsilon
+
+        return {
+            'x_t_target': x_t_target,
+            'epsilon': epsilon
+        }
+
+    def ddim_multistep(self, pipeline, x, t_c, target_steps, clip=False):
+        for idx, t_target in enumerate(target_steps):
+            result = self.ddim_singlestep(pipeline, x, t_c, t_target)
+            x = result['x_t_target']
+            t_c = t_target
+
+        if clip:
+            result['x_t_target'] = torch.clip(result['x_t_target'], -1, 1)
+
+        return result
+
+    def ddim_loss(self, model, x, timestep=10, t_sec=100):
+        target_steps = list(range(0, t_sec, timestep))[1:]
+        x_sec = self.ddim_multistep(model, x, t_c=0, target_steps=target_steps)
+        x_sec = x_sec['x_t_target']
+        x_sec_recon = self.ddim_singlestep(model, x_sec, t_c=target_steps[-1], t_target=target_steps[-1] + timestep)
+        x_sec_recon = self.ddim_singlestep(model, x_sec_recon['x_t_target'], t_c=target_steps[-1] + timestep,
+                                           t_target=target_steps[-1])
+        x_sec_recon = x_sec_recon['x_t_target']
+        loss = (x_sec_recon - x_sec) ** 2
+        loss = loss.flatten(1).sum(dim=-1)
+        loss = utils.tensor_to_ndarray(loss)[0]
+        return loss
+
+    def generative_model_eval(self, model, input, cfg):
         outputs = []
         data_loader = DataLoader(
             dataset=input,
-            batch_size=batch_size,
+            batch_size=cfg["eval_batch_size"],
             shuffle=False,
             num_workers=32,
             pin_memory=torch.cuda.is_available()
@@ -90,28 +158,26 @@ class AttackModel:
         model = pipeline.unet
         model.eval()
         noise_scheduler = pipeline.scheduler
+        loss_function = getattr(self, cfg["loss_kind"]+"_loss")
         diffusion_steps = noise_scheduler.config.num_train_timesteps
-        interval = diffusion_steps // diffusion_sample_number
+        interval = diffusion_steps // cfg["diffusion_sample_number"]
 
         for iteration, batch in enumerate(data_loader):
             clean_images = batch["input"].cuda()
-            batch_loss = np.zeros((batch_size, diffusion_sample_number))
+            batch_loss = np.zeros((cfg["eval_batch_size"], cfg["diffusion_sample_number"]))
             # start_time = time.time()
-            for i, timestep in enumerate(range(0, diffusion_steps, interval)):
-                noise = torch.randn(clean_images.shape, device=clean_images.device)
-                timesteps = torch.full((batch_size,), timestep, device=clean_images.device)
-                noise_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
-                model_output = model(noise_images, timesteps).sample
-                loss = F.mse_loss(model_output, noise, reduction="none")
-                loss = torch.mean(loss, dim=(1, 2, 3))
-                loss = utils.tensor_to_ndarray(loss)[0]
+            for i, timestep in enumerate(range(interval, diffusion_steps, interval)):
+                if cfg["loss_kind"] == "ddpm":
+                    loss = self.ddpm_loss(pipeline, clean_images, timestep)
+                elif cfg["loss_kind"] == "ddim":
+                    loss = self.ddim_loss(pipeline, clean_images, t_sec=timestep)
                 batch_loss[:, i] = loss
             # print(f"time duration: {time.time() - start_time}s")
             outputs.append(batch_loss)
         output = np.concatenate(outputs, axis=0)
         return output
 
-    def eval_perturb(self, model, dataset, per_num=101, calibration=True):
+    def eval_perturb(self, model, dataset, cfg):
         """
         Evaluate the loss of the perturbed data
 
@@ -124,22 +190,22 @@ class AttackModel:
         # self.target_model_revision(model)
         ori_dataset = deepcopy(dataset)
         ori_dataset.set_transform(utils.transform_images)
-        ori_losses = self.generative_model_eval(model, ori_dataset)
-        if calibration:
-            ref_ori_losses = self.generative_model_eval(self.reference_model, ori_dataset)
-        for _ in tqdm(range(per_num)):
+        ori_losses = self.generative_model_eval(model, ori_dataset, cfg)
+        if cfg["calibration"]:
+            ref_ori_losses = self.generative_model_eval(self.reference_model, ori_dataset, cfg)
+        for _ in tqdm(range(cfg["perturbation_number"])):
             per_dataset = self.image_dataset_perturbation(dataset)
-            per_loss = self.generative_model_eval(model, per_dataset)
+            per_loss = self.generative_model_eval(model, per_dataset, cfg)
             per_losses.append(per_loss[:, :, None])
-            if calibration:
-                ref_per_loss = self.generative_model_eval(self.reference_model, per_dataset)
+            if cfg["calibration"]:
+                ref_per_loss = self.generative_model_eval(self.reference_model, per_dataset, cfg)
                 ref_per_losses.append(ref_per_loss[:, :, None])
         per_losses = np.concatenate(per_losses, axis=2)
         var_losses = per_losses - ori_losses[:, :, None]
-        if calibration:
+        if cfg["calibration"]:
             ref_per_losses = np.concatenate(ref_per_losses, axis=2)
             ref_var_losses = ref_per_losses - ref_ori_losses[:, :, None]
-        if calibration:
+        if cfg["calibration"]:
             output = (Dict(
                 per_losses=per_losses,
                 ori_losses=ori_losses,
@@ -171,13 +237,13 @@ class AttackModel:
         dataset = Dataset.from_dict({"image": files}).cast_column("image", Image())
         return dataset
 
-    def data_prepare(self, kind, path="attack/attack_data_diffusion", calibration=True):
+    def data_prepare(self, kind, cfg):
         logger.info("Preparing data...")
-        data_path = os.path.join(PATH, path)
+        data_path = os.path.join(PATH, cfg["attack_data_path"])
         target_model = getattr(self, kind + "_model")
         mem_data = self.datasets[kind]["train"]
         nonmem_data = self.datasets[kind]["valid"]
-        if calibration:
+        if cfg["calibration"]:
             mem_path = os.path.join(data_path, kind, "cali", "mem_feat.npz")
             nonmem_path = os.path.join(data_path, kind, "cali", "nonmen_feat.npz")
             gen_path = os.path.join(data_path, kind, "cali", "gen_feat.npz")
@@ -188,21 +254,21 @@ class AttackModel:
         else:
             mem_path = os.path.join(data_path, kind, "noncali", "mem_feat.npz")
             nonmem_path = os.path.join(data_path, kind, "noncali", "nonmen_feat.npz")
-        if not utils.check_files_exist(mem_path, nonmem_path, gen_path):
-            if calibration:
+        if not utils.check_files_exist(mem_path, nonmem_path, gen_path) or not cfg["load_attack_data"]:
+            if cfg["calibration"]:
                 logger.info("Generating feature vectors for memory data...")
-                mem_feat, ref_mem_feat = self.eval_perturb(target_model, mem_data, calibration=calibration)
+                mem_feat, ref_mem_feat = self.eval_perturb(target_model, mem_data, cfg)
                 utils.save_dict_to_npz(mem_feat, mem_path)
                 utils.save_dict_to_npz(ref_mem_feat, ref_mem_path)
 
                 logger.info("Generating feature vectors for non-memory data...")
-                nonmem_feat, ref_nonmem_feat = self.eval_perturb(target_model, nonmem_data, calibration=calibration)
+                nonmem_feat, ref_nonmem_feat = self.eval_perturb(target_model, nonmem_data, cfg)
                 utils.save_dict_to_npz(nonmem_feat, nonmem_path)
                 utils.save_dict_to_npz(ref_nonmem_feat, ref_nonmem_path)
 
                 logger.info("Generating feature vectors for generative data...")
                 gen_data = self.gen_data_diffusion(target_model, img_path)
-                gen_feat, ref_gen_feat = self.eval_perturb(target_model, gen_data, calibration=calibration)
+                gen_feat, ref_gen_feat = self.eval_perturb(target_model, gen_data, cfg)
                 utils.save_dict_to_npz(gen_feat, gen_path)
                 utils.save_dict_to_npz(ref_gen_feat, ref_gen_path)
                 logger.info("Saving feature vectors...")
@@ -210,14 +276,14 @@ class AttackModel:
 
             else:
                 logger.info("Generating feature vectors for memory data...")
-                mem_feat = self.eval_perturb(target_model, mem_data, calibration=calibration)
+                mem_feat = self.eval_perturb(target_model, mem_data, cfg)
                 logger.info("Generating feature vectors for non-memory data...")
-                nonmem_feat = self.eval_perturb(target_model, nonmem_data, calibration=calibration)
+                nonmem_feat = self.eval_perturb(target_model, nonmem_data, cfg)
                 logger.info("Saving feature vectors...")
                 utils.save_dict_to_npz(mem_feat, mem_path)
                 utils.save_dict_to_npz(nonmem_feat, nonmem_path)
         else:
-            if calibration:
+            if cfg["calibration"]:
                 logger.info("Loading feature vectors...")
                 mem_feat = utils.load_dict_from_npz(mem_path)
                 ref_mem_feat = utils.load_dict_from_npz(ref_mem_path)
@@ -230,7 +296,7 @@ class AttackModel:
                 mem_feat = utils.load_dict_from_npz(mem_path)
                 nonmem_feat = utils.load_dict_from_npz(nonmem_path)
         logger.info("Data preparation complete.")
-        if calibration:
+        if cfg["calibration"]:
             return Dict(
                 mem_feat=mem_feat,
                 nonmem_feat=nonmem_feat,
@@ -270,19 +336,19 @@ class AttackModel:
                                   torch.ones(gen_feat.shape[0])*2]).type(torch.LongTensor).cuda()
         return feat, ground_truth
 
-    def attack_model_training(self, epoch_num=15, load_trained=False, ):
+    def attack_model_training(self, cfg):
 
         save_path = os.path.join(PATH, "attack/attack_model_diffusion", 'attack_model.pth')
 
-        raw_info = self.data_prepare(kind="shadow", calibration=True)
-        eval_raw_info = self.data_prepare(kind="target", calibration=True)
+        raw_info = self.data_prepare("shadow", cfg)
+        eval_raw_info = self.data_prepare("target", cfg)
 
         feat, ground_truth = self.feat_prepare(raw_info)
         eval_feat, eval_ground_truth = self.feat_prepare(eval_raw_info)
 
         feature_dim = feat.shape[-1]
         attack_model = MLAttckerModel(feature_dim, output_size=3).cuda()
-        if load_trained and utils.check_files_exist(save_path):
+        if cfg["load_trained"] and utils.check_files_exist(save_path):
             attack_model.load_state_dict(torch.load(save_path))
             self.attack_model = attack_model
             self.is_model_training = True
@@ -292,7 +358,7 @@ class AttackModel:
         weight = torch.Tensor([1, 1, 1]).cuda()
         criterion = torch.nn.CrossEntropyLoss(weight=weight)
         print_freq = 10
-        for i in range(epoch_num):
+        for i in range(cfg["epoch_number"]):
             attack_model.train()
             predict = attack_model(feat)
             optimizer.zero_grad()
@@ -310,11 +376,11 @@ class AttackModel:
         self.attack_model = attack_model
         # Save model
         torch.save(attack_model.state_dict(), save_path)
-    def conduct_attack(self, target_samples=None):
+    def conduct_attack(self, cfg):
         if self.kind == 'ml':
             assert self.is_model_training is True
             attack_model = self.attack_model
-            raw_info = self.data_prepare(kind="target", calibration=True)
+            raw_info = self.data_prepare("target", cfg)
             feat, ground_truth = self.feat_prepare(raw_info)
             predict = attack_model(feat)
             self.eval_attack(ground_truth, predict)

@@ -162,3 +162,12 @@ augmentations = transforms.Compose(
 def transform_images(examples):
     images = [augmentations(image.convert("RGB")) for image in examples["image"]]
     return {"input": images}
+
+
+def extract(v, t, x_shape):
+    """
+    Extract some coefficients at specified timesteps, then reshape to
+    [batch_size, 1, 1, 1, 1, ...] for broadcasting purposes.
+    """
+    out = torch.gather(v, index=t, dim=0).float()
+    return out.view([t.shape[0]] + [1] * (len(x_shape) - 1))
