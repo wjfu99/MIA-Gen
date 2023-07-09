@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -12,6 +13,7 @@ from attack import utils
 from attack.utils import Dict
 from sklearn.metrics import roc_auc_score, roc_curve, auc, precision_recall_curve, f1_score
 from itertools import cycle
+from copy import deepcopy
 import torchvision.datasets as datasets
 import matplotlib.pyplot as plt
 
@@ -83,7 +85,7 @@ class AttackModel:
         if calibration:
             ref_ori_losses = self.generative_model_eval(self.reference_model, dataset)
         for _ in tqdm(range(per_num)):
-            per_dataset = self.gaussian_noise_tensor(dataset, 0, 0.1)
+            per_dataset = self.random_erasing(dataset)
             per_loss = self.generative_model_eval(model, per_dataset)
             per_losses.append(per_loss[:, None])
             if calibration:
@@ -316,7 +318,7 @@ class AttackModel:
             plt.show()
 
     @staticmethod
-    def gaussian_noise_tensor(tensor, mean=0.0, std=0.1):
+    def gaussian_noise_tensor(tensor, mean=0.0, std=0.05):
         # create a tensor of gaussian noise with the same shape as the input tensor
         noise = torch.randn(tensor.shape) * std + mean
         # add the noise to the original tensor
@@ -324,6 +326,49 @@ class AttackModel:
         # make sure the pixel values are within [0, 1]
         noisy_tensor = torch.clamp(noisy_tensor, 0.0, 1.0)
         return noisy_tensor
+    @staticmethod
+    def random_erasing(images, p=1, s=(0.02, 0.4), r=(0.3, 1 / 0.3)):
+        """
+        Apply random erasing data augmentation technique to a tensor of images.
+
+        Args:
+            images (torch.Tensor): Tensor of images with shape (batch_size, channels, height, width).
+            p (float): Probability of applying random erasing to each image. Defaults to 0.5.
+            s (tuple): Range of the percentage of an image to be erased. Defaults to (0.02, 0.4).
+            r (tuple): Range of the aspect ratio of the erased area. Defaults to (0.3, 1/0.3).
+
+        Returns:
+            torch.Tensor: Augmented tensor of images.
+        """
+        images = deepcopy(images)
+        if random.random() > p:
+            return images
+
+        batch_size, channels, height, width = images.size()
+
+        for i in range(batch_size):
+            # Calculate area to be erased
+            while True:
+                area = height * width * random.uniform(s[0], s[1])
+
+                # Calculate aspect ratio of the erased area
+                aspect_ratio = random.uniform(r[0], r[1])
+
+                # Calculate height and width of the erased area
+                h = int(round((area * aspect_ratio) ** 0.5))
+                w = int(round((area / aspect_ratio) ** 0.5))
+
+                if h > height or w > width:
+                    continue
+
+                # Choose random location for the top-left corner of the erased area
+                top = random.randint(0, height - h)
+                left = random.randint(0, width - w)
+
+                # Erase the image tensor
+                images[i, :, top:top + h, left:left + w] = torch.randn((channels, h, w))
+                break
+        return images
 
     @staticmethod
     def output_reformat(output_dict):
