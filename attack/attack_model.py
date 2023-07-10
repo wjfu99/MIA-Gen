@@ -15,6 +15,7 @@ from sklearn.metrics import roc_auc_score, roc_curve, auc, precision_recall_curv
 from itertools import cycle
 from copy import deepcopy
 import torchvision.datasets as datasets
+import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,7 @@ class AttackModel:
         if calibration:
             ref_ori_losses = self.generative_model_eval(self.reference_model, dataset)
         for _ in tqdm(range(per_num)):
-            per_dataset = self.random_erasing(dataset)
+            per_dataset = self.image_augmentation(dataset)
             per_loss = self.generative_model_eval(model, per_dataset)
             per_losses.append(per_loss[:, None])
             if calibration:
@@ -326,6 +327,19 @@ class AttackModel:
         # make sure the pixel values are within [0, 1]
         noisy_tensor = torch.clamp(noisy_tensor, 0.0, 1.0)
         return noisy_tensor
+
+    @staticmethod
+    def image_augmentation(images):
+        transform = transforms.Compose([
+            # transforms.ColorJitter(brightness=None, contrast=[0.25, 0.25]),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomRotation(degrees=20)
+        ])
+        batch_size = images.size()[0]
+        aug_images = torch.empty_like(images)
+        for i in range(batch_size):
+            aug_images[i] = transform(images[i])
+        return aug_images
     @staticmethod
     def random_erasing(images, p=1, s=(0.02, 0.4), r=(0.3, 1 / 0.3)):
         """
