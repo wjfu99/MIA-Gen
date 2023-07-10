@@ -75,6 +75,6 @@ datasets = {
 }
 
 attack_model = AttackModel(target_model, datasets, reference_model, shadow_model, cfg=cfg)
-attack_model.attack_demo(cfg, target_model)
+# attack_model.attack_demo(cfg, target_model)
 attack_model.attack_model_training(cfg=cfg)
 attack_model.conduct_attack(cfg=cfg)

@@ -495,7 +495,7 @@ class AttackModel:
 
 
     @staticmethod
-    def gaussian_noise_tensor(tensor, mean=0.0, std=0.2):
+    def gaussian_noise_tensor(tensor, mean=0.0, std=0.1):
         # create a tensor of gaussian noise with the same shape as the input tensor
         noise = torch.randn(tensor.shape) * std + mean
         # add the noise to the original tensor
