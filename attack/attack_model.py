@@ -332,8 +332,9 @@ class AttackModel:
     def image_augmentation(images):
         transform = transforms.Compose([
             # transforms.ColorJitter(brightness=None, contrast=[0.25, 0.25]),
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomRotation(degrees=20)
+            transforms.RandomHorizontalFlip(p=1),
+            # transforms.RandomRotation(degrees=20),
+            transforms.RandomPerspective(distortion_scale=0.2, p=1),
         ])
         batch_size = images.size()[0]
         aug_images = torch.empty_like(images)
