@@ -224,7 +224,7 @@ class AttackModel:
             )
         return output
 
-    def gen_data_diffusion(self, model, img_path, sample_numbers=1000, batch_size=100, path="attack/attack_data_diffusion"):
+    def gen_data_diffusion(self, model, img_path, sample_numbers=100, batch_size=100, path="attack/attack_data_diffusion"):
         pipeline = model
         generated_samples = []
         for i in range(0, sample_numbers, batch_size):
@@ -506,10 +506,15 @@ class AttackModel:
 
     def image_dataset_perturbation(self, dataset):
         # create a tensor of gaussian noise with the same shape as the input tensor
+        # perturbation = transforms.Compose([
+        #     transforms.ToTensor(),
+        #     transforms.Normalize([0.5], [0.5]),
+        #     self.gaussian_noise_tensor,
+        # ])
         perturbation = transforms.Compose([
             transforms.ToTensor(),
+            transforms.RandomResizedCrop(size=(64, 64), scale=(0.8, 0.8)),
             transforms.Normalize([0.5], [0.5]),
-            self.gaussian_noise_tensor,
         ])
         def transform_images(examples):
             images = [perturbation(image.convert("RGB")) for image in examples["image"]]
