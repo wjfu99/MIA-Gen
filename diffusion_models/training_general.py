@@ -272,6 +272,26 @@ def parse_args():
     parser.add_argument(
         "--enable_xformers_memory_efficient_attention", action="store_true", help="Whether or not to use xformers."
     )
+    parser.add_argument(
+        "--train_sta_idx",
+        type=int,
+        default=None,
+    )
+    parser.add_argument(
+        "--train_end_idx",
+        type=int,
+        default=None,
+    )
+    parser.add_argument(
+        "--eval_sta_idx",
+        type=int,
+        default=None,
+    )
+    parser.add_argument(
+        "--eval_end_idx",
+        type=int,
+        default=None,
+    )
 
     args = parser.parse_args()
     env_local_rank = int(os.environ.get("LOCAL_RANK", -1))
@@ -468,8 +488,9 @@ def main(args):
         )
     else:
         files = get_file_names(args.train_data_dir)
-        dataset = datasets.Dataset.from_dict({"image": files}).cast_column("image", Image())
-        dataset = Dataset.from_dict(dataset[150000:160000])
+        total_dataset = datasets.Dataset.from_dict({"image": files}).cast_column("image", Image())
+        dataset = Dataset.from_dict(total_dataset[args.train_sta_idx:args.train_end_idx])
+        eval_dataset = Dataset.from_dict(total_dataset[args.eval_sta_idx:args.eval_end_idx])
         # dataset = load_dataset("imagefolder", data_dir=args.train_data_dir, cache_dir=args.cache_dir, split="train")
         # See more about loading custom images at
         # https://huggingface.co/docs/datasets/v2.4.0/en/image_load#imagefolder
@@ -492,8 +513,12 @@ def main(args):
     logger.info(f"Dataset size: {len(dataset)}")
 
     dataset.set_transform(transform_images)
+    eval_dataset.set_transform(transform_images)
     train_dataloader = torch.utils.data.DataLoader(
         dataset, batch_size=args.train_batch_size, shuffle=True, num_workers=args.dataloader_num_workers
+    )
+    eval_dataloader = torch.utils.data.DataLoader(
+        eval_dataset, batch_size=args.train_batch_size, shuffle=False, num_workers=args.dataloader_num_workers
     )
 
     # Initialize the learning rate scheduler
@@ -653,6 +678,42 @@ def main(args):
 
         # Generate sample images for visual inspection
         if accelerator.is_main_process: ## TODO: maybe we should add evaluation phase in there. (avoid overfitting)
+            model.eval()
+            eval_loss = []
+            for step, batch in enumerate(eval_dataloader):
+
+                clean_images = batch["input"].to(model.device)
+                # Sample noise that we'll add to the images
+                noise = torch.randn(clean_images.shape).to(clean_images.device)
+                bsz = clean_images.shape[0]
+                # Sample a random timestep for each image
+                timesteps = torch.randint(
+                    0, noise_scheduler.config.num_train_timesteps, (bsz,), device=clean_images.device
+                ).long()
+
+                # Add noise to the clean images according to the noise magnitude at each timestep
+                # (this is the forward diffusion process)
+                noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
+                # Predict the noise residual
+                model_output = model(noisy_images, timesteps).sample
+
+                if args.prediction_type == "epsilon":
+                    loss = F.mse_loss(model_output, noise)  # this could have different weights!
+                elif args.prediction_type == "sample":
+                    alpha_t = _extract_into_tensor(
+                        noise_scheduler.alphas_cumprod, timesteps, (clean_images.shape[0], 1, 1, 1)
+                    )
+                    snr_weights = alpha_t / (1 - alpha_t)
+                    loss = snr_weights * F.mse_loss(
+                        model_output, clean_images, reduction="none"
+                    )  # use SNR weighting from distillation paper
+                    loss = loss.mean()
+                else:
+                    raise ValueError(f"Unsupported prediction type: {args.prediction_type}")
+                eval_loss.append(loss.detach().item())
+            logs = {"eval_loss": sum(eval_loss)/len(eval_loss)}
+            accelerator.log(logs, step=global_step)
+
             if epoch % args.save_images_epochs == 0 or epoch == args.num_epochs - 1:
                 unet = accelerator.unwrap_model(model)
 
