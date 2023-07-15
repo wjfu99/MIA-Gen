@@ -15,33 +15,53 @@
 #  --eval_end_idx=170000
 
 
-accelerate launch training_general.py \
-  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/total" \
-  --resume_from_checkpoint "latest" \
-  --resolution=64 --center_crop \
-  --output_dir="ddpm-celeba-64-target2" \
-  --train_batch_size=16 \
-  --num_epochs=500 \
-  --gradient_accumulation_steps=1 \
-  --learning_rate=1e-4 \
-  --lr_warmup_steps=500 \
-  --mixed_precision=no \
-  --train_sta_idx=0 \
-  --train_end_idx=10000 \
-  --eval_sta_idx=10000 \
-  --eval_end_idx=11000
+#accelerate launch training_general.py \
+#  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/total" \
+#  --resume_from_checkpoint "latest" \
+#  --resolution=64 --center_crop \
+#  --output_dir="ddpm-celeba-64-target2" \
+#  --train_batch_size=16 \
+#  --num_epochs=500 \
+#  --gradient_accumulation_steps=1 \
+#  --learning_rate=1e-4 \
+#  --lr_warmup_steps=500 \
+#  --mixed_precision=no \
+#  --train_sta_idx=0 \
+#  --train_end_idx=10000 \
+#  --eval_sta_idx=10000 \
+#  --eval_end_idx=11000
+# for 100k training datasets
 accelerate launch training_general.py \
   --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/total" \
   --resume_from_checkpoint "latest" \
   --resolution=64 --center_crop \
   --output_dir="ddpm-celeba-64-100k" \
   --train_batch_size=16 \
-  --num_epochs=100 \
+  --num_epochs=200 \
+  --checkpointing_steps=1500 \
   --gradient_accumulation_steps=1 \
-  --learning_rate=1e-4 \
+  --learning_rate=5e-11 \
   --lr_warmup_steps=500 \
   --mixed_precision=no \
   --train_sta_idx=0 \
   --train_end_idx=100000 \
   --eval_sta_idx=100000 \
   --eval_end_idx=110000
+
+  # for 50k training datasets
+  accelerate launch training_general.py \
+  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/total" \
+  --resume_from_checkpoint "latest" \
+  --resolution=64 --center_crop \
+  --output_dir="ddpm-celeba-64-50k" \
+  --train_batch_size=16 \
+  --num_epochs=400 \
+  --checkpointing_steps=1500 \
+  --gradient_accumulation_steps=1 \
+  --learning_rate=1e-4 \
+  --lr_warmup_steps=500 \
+  --mixed_precision=no \
+  --train_sta_idx=0 \
+  --train_end_idx=50000 \
+  --eval_sta_idx=50000 \
+  --eval_end_idx=60000

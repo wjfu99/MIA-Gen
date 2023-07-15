@@ -191,37 +191,31 @@ class AttackModel:
         ori_dataset = deepcopy(dataset)
         ori_dataset.set_transform(utils.transform_images)
         ori_losses = self.generative_model_eval(model, ori_dataset, cfg)
-        if cfg["calibration"]:
-            ref_ori_losses = self.generative_model_eval(self.reference_model, ori_dataset, cfg)
+        ref_ori_losses = self.generative_model_eval(self.reference_model, ori_dataset, cfg) if cfg["calibration"] else None
         for _ in tqdm(range(cfg["perturbation_number"])):
             per_dataset = self.image_dataset_perturbation(dataset)
             per_loss = self.generative_model_eval(model, per_dataset, cfg)
             per_losses.append(per_loss[:, :, None])
-            if cfg["calibration"]:
-                ref_per_loss = self.generative_model_eval(self.reference_model, per_dataset, cfg)
+            ref_per_loss = self.generative_model_eval(self.reference_model, per_dataset, cfg) if cfg["calibration"] else None
+            try:
                 ref_per_losses.append(ref_per_loss[:, :, None])
+            except:
+                pass
         per_losses = np.concatenate(per_losses, axis=2)
         var_losses = per_losses - ori_losses[:, :, None]
-        if cfg["calibration"]:
-            ref_per_losses = np.concatenate(ref_per_losses, axis=2)
-            ref_var_losses = ref_per_losses - ref_ori_losses[:, :, None]
-        if cfg["calibration"]:
-            output = (Dict(
-                per_losses=per_losses,
-                ori_losses=ori_losses,
-                var_losses=var_losses,
-            ),
-            Dict(
-                ref_per_losses=ref_per_losses,
-                ref_ori_losses=ref_ori_losses,
-                ref_var_losses=ref_var_losses,
-            ))
-        else:
-            output = Dict(
-                per_losses=per_losses,
-                ori_losses=ori_losses,
-                var_losses=var_losses,
-            )
+        ref_per_losses = np.concatenate(ref_per_losses, axis=2) if cfg["calibration"] else None
+        ref_var_losses = ref_per_losses - ref_ori_losses[:, :, None] if cfg["calibration"] else None
+
+        output = (Dict(
+            per_losses=per_losses,
+            ori_losses=ori_losses,
+            var_losses=var_losses,
+        ),
+        Dict(
+            ref_per_losses=ref_per_losses,
+            ref_ori_losses=ref_ori_losses,
+            ref_var_losses=ref_var_losses,
+        ))
         return output
 
     def gen_data_diffusion(self, model, img_path, sample_numbers=100, batch_size=100, path="attack/attack_data_diffusion"):
@@ -243,97 +237,76 @@ class AttackModel:
         target_model = getattr(self, kind + "_model")
         mem_data = self.datasets[kind]["train"]
         nonmem_data = self.datasets[kind]["valid"]
-        if cfg["calibration"]:
-            mem_path = os.path.join(data_path, kind, "cali", "mem_feat.npz")
-            nonmem_path = os.path.join(data_path, kind, "cali", "nonmen_feat.npz")
-            gen_path = os.path.join(data_path, kind, "cali", "gen_feat.npz")
-            img_path = os.path.join(data_path, kind, "cali", "gen_img")
-            ref_mem_path = os.path.join(data_path, kind, "cali", "ref_mem_feat.npz")
-            ref_nonmem_path = os.path.join(data_path, kind, "cali", "ref_nonmen_feat.npz")
-            ref_gen_path = os.path.join(data_path, kind, "cali", "ref_gen_feat.npz")
-        else:
-            mem_path = os.path.join(data_path, kind, "noncali", "mem_feat.npz")
-            nonmem_path = os.path.join(data_path, kind, "noncali", "nonmen_feat.npz")
-        if not utils.check_files_exist(mem_path, nonmem_path, gen_path) or not cfg["load_attack_data"]:
+
+        mem_path = os.path.join(data_path, kind, "mem_feat.npz")
+        nonmem_path = os.path.join(data_path, kind, "nonmen_feat.npz")
+        ref_mem_path = os.path.join(data_path, kind, "ref_mem_feat.npz")
+        ref_nonmem_path = os.path.join(data_path, kind, "ref_nonmen_feat.npz")
+
+        pathlist = (mem_path, nonmem_path, ref_mem_path, ref_nonmem_path) if cfg["calibration"] else (mem_path, nonmem_path)
+
+        if not utils.check_files_exist(*pathlist) or not cfg["load_attack_data"]:
+
+            logger.info("Generating feature vectors for memory data...")
+            mem_feat, ref_mem_feat = self.eval_perturb(target_model, mem_data, cfg)
+            utils.save_dict_to_npz(mem_feat, mem_path)
             if cfg["calibration"]:
-                logger.info("Generating feature vectors for memory data...")
-                mem_feat, ref_mem_feat = self.eval_perturb(target_model, mem_data, cfg)
-                utils.save_dict_to_npz(mem_feat, mem_path)
                 utils.save_dict_to_npz(ref_mem_feat, ref_mem_path)
 
-                logger.info("Generating feature vectors for non-memory data...")
-                nonmem_feat, ref_nonmem_feat = self.eval_perturb(target_model, nonmem_data, cfg)
-                utils.save_dict_to_npz(nonmem_feat, nonmem_path)
+            logger.info("Generating feature vectors for non-memory data...")
+            nonmem_feat, ref_nonmem_feat = self.eval_perturb(target_model, nonmem_data, cfg)
+            utils.save_dict_to_npz(nonmem_feat, nonmem_path)
+            if cfg["calibration"]:
                 utils.save_dict_to_npz(ref_nonmem_feat, ref_nonmem_path)
 
-                logger.info("Generating feature vectors for generative data...")
-                gen_data = self.gen_data_diffusion(target_model, img_path)
-                gen_feat, ref_gen_feat = self.eval_perturb(target_model, gen_data, cfg)
-                utils.save_dict_to_npz(gen_feat, gen_path)
-                utils.save_dict_to_npz(ref_gen_feat, ref_gen_path)
-                logger.info("Saving feature vectors...")
+            logger.info("Saving feature vectors...")
 
-
-            else:
-                logger.info("Generating feature vectors for memory data...")
-                mem_feat = self.eval_perturb(target_model, mem_data, cfg)
-                logger.info("Generating feature vectors for non-memory data...")
-                nonmem_feat = self.eval_perturb(target_model, nonmem_data, cfg)
-                logger.info("Saving feature vectors...")
-                utils.save_dict_to_npz(mem_feat, mem_path)
-                utils.save_dict_to_npz(nonmem_feat, nonmem_path)
         else:
-            if cfg["calibration"]:
-                logger.info("Loading feature vectors...")
-                mem_feat = utils.load_dict_from_npz(mem_path)
-                ref_mem_feat = utils.load_dict_from_npz(ref_mem_path)
-                nonmem_feat = utils.load_dict_from_npz(nonmem_path)
-                ref_nonmem_feat = utils.load_dict_from_npz(ref_nonmem_path)
-                gen_feat = utils.load_dict_from_npz(gen_path)
-                ref_gen_feat = utils.load_dict_from_npz(ref_gen_path)
-            else:
-                logger.info("Loading feature vectors...")
-                mem_feat = utils.load_dict_from_npz(mem_path)
-                nonmem_feat = utils.load_dict_from_npz(nonmem_path)
+            logger.info("Loading feature vectors...")
+            mem_feat = utils.load_dict_from_npz(mem_path)
+            ref_mem_feat = utils.load_dict_from_npz(ref_mem_path) if cfg["calibration"] else None
+            nonmem_feat = utils.load_dict_from_npz(nonmem_path)
+            ref_nonmem_feat = utils.load_dict_from_npz(ref_nonmem_path) if cfg["calibration"] else None
+
         logger.info("Data preparation complete.")
-        if cfg["calibration"]:
-            return Dict(
-                mem_feat=mem_feat,
-                nonmem_feat=nonmem_feat,
-                gen_feat=gen_feat,
-                ref_mem_feat=ref_mem_feat,
-                ref_nonmem_feat=ref_nonmem_feat,
-                ref_gen_feat = ref_gen_feat
-                        )
-        else:
-            return Dict(
-                mem_feat=mem_feat,
-                nonmem_feat=nonmem_feat
-            )
+
+        return Dict(
+            mem_feat=mem_feat,
+            nonmem_feat=nonmem_feat,
+            ref_mem_feat=ref_mem_feat,
+            ref_nonmem_feat=ref_nonmem_feat,
+                    )
 
 
-    def feat_prepare(self, info_dict):
+    def feat_prepare(self, info_dict, cfg):
         # mem_info = info_dict.mem_feat
         # ref_mem_info = info_dict.ref_mem_feat
-        mem_feat = info_dict.mem_feat.var_losses / info_dict.mem_feat.ori_losses[:, :, None]\
-                   - info_dict.ref_mem_feat.ref_var_losses / info_dict.ref_mem_feat.ref_ori_losses[:, :, None]
-        nonmem_feat = info_dict.nonmem_feat.var_losses / info_dict.nonmem_feat.ori_losses[:, :, None]\
-                   - info_dict.ref_nonmem_feat.ref_var_losses / info_dict.ref_nonmem_feat.ref_ori_losses[:, :, None]
-        gen_feat = info_dict.gen_feat.var_losses / info_dict.gen_feat.ori_losses[:, :, None] \
-                      - info_dict.ref_gen_feat.ref_var_losses / info_dict.ref_gen_feat.ref_ori_losses[:, :, None]
+        if cfg["calibration"]:
+            mem_feat = info_dict.mem_feat.var_losses / info_dict.mem_feat.ori_losses[:, :, None]\
+                       - info_dict.ref_mem_feat.ref_var_losses / info_dict.ref_mem_feat.ref_ori_losses[:, :, None]
+            nonmem_feat = info_dict.nonmem_feat.var_losses / info_dict.nonmem_feat.ori_losses[:, :, None]\
+                       - info_dict.ref_nonmem_feat.ref_var_losses / info_dict.ref_nonmem_feat.ref_ori_losses[:, :, None]
+            # gen_feat = info_dict.gen_feat.var_losses / info_dict.gen_feat.ori_losses[:, :, None] \
+            #               - info_dict.ref_gen_feat.ref_var_losses / info_dict.ref_gen_feat.ref_ori_losses[:, :, None]
+        else:
+            mem_feat = info_dict.mem_feat.var_losses / info_dict.mem_feat.ori_losses[:, :, None]
+            nonmem_feat = info_dict.nonmem_feat.var_losses / info_dict.nonmem_feat.ori_losses[:, :, None]
+            # gen_feat = info_dict.gen_feat.var_losses / info_dict.gen_feat.ori_losses[:, :, None]
 
-        mem_feat = mem_feat[:, 2, :]
-        nonmem_feat = nonmem_feat[:, 2, :]
-        gen_feat = gen_feat[:, 2, :]
+        mem_feat = mem_feat[:, 3, :]
+        nonmem_feat = nonmem_feat[:, 3, :]
+        # gen_feat = gen_feat[:, 2, :]
 
-        mem_freq = self.frequency(mem_feat, split=100)
-        nonmem_freq = self.frequency(nonmem_feat, split=100)
-        gen_freq = self.frequency(gen_feat, split=100)
+        if cfg["attack_kind"] == "stat":
+            feat = np.concatenate([mem_feat.mean(axis=-1), nonmem_feat.mean(axis=-1)])
+            ground_truth = np.concatenate([np.zeros(mem_feat.shape[0]), np.ones(nonmem_feat.shape[0])]).astype(np.int)
 
-        mem_feat, nonmem_feat, gen_feat = utils.ndarray_to_tensor(mem_freq, nonmem_freq, gen_freq)
-        feat = torch.cat([mem_feat, nonmem_feat, gen_feat])
-        ground_truth = torch.cat([torch.zeros(mem_feat.shape[0]), torch.ones(nonmem_feat.shape[0]),
-                                  torch.ones(gen_feat.shape[0])*2]).type(torch.LongTensor).cuda()
+        elif cfg["attack_kind"] == "nn":
+            mem_freq = self.frequency(mem_feat, split=100)
+            nonmem_freq = self.frequency(nonmem_feat, split=100)
+            mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_freq, nonmem_freq)
+            feat = torch.cat([mem_feat, nonmem_feat])
+            ground_truth = torch.cat([torch.zeros(mem_feat.shape[0]), torch.ones(nonmem_feat.shape[0])]).type(torch.LongTensor).cuda()
         return feat, ground_truth
 
     def attack_model_training(self, cfg):
@@ -376,17 +349,22 @@ class AttackModel:
         self.attack_model = attack_model
         # Save model
         torch.save(attack_model.state_dict(), save_path)
+
     def conduct_attack(self, cfg):
         if cfg["attack_kind"] == 'ml':
-            assert self.is_model_training is True
+            if not self.is_model_training:
+                self.attack_model_training(cfg)
             attack_model = self.attack_model
             raw_info = self.data_prepare("target", cfg)
-            feat, ground_truth = self.feat_prepare(raw_info)
+            feat, ground_truth = self.feat_prepare(raw_info, cfg)
             predict = attack_model(feat)
+            predict, ground_truth = utils.tensor_to_ndarray(predict, ground_truth)
             self.eval_attack(ground_truth, predict)
-        # elif cfg["attack_kind"] == 'stat':
-            # dist = self.eval_perturb(self.target_model, target_samples).pre_losses
-            # predict = self.ml_model(feat)
+        elif cfg["attack_kind"] == 'stat':
+            raw_info = self.data_prepare("target", cfg)
+            feat, ground_truth = self.feat_prepare(raw_info, cfg)
+            self.eval_attack(ground_truth, -feat)
+
     def attack_demo(self, cfg, pipeline, timestep=100):
         mem_data = self.datasets["target"]["train"]
         nonmem_data = self.datasets["target"]["valid"]
@@ -422,48 +400,62 @@ class AttackModel:
         self.eval_attack(label, ddim_score)  # function eval_attack needs to be revised.
         self.eval_attack(label, ddpm_score)
 
-
+    # @staticmethod
+    # def eval_attack(y_true, y_scores, plot=True):
+    #     n_classes = 3
+    #     y_true, y_scores = utils.tensor_to_ndarray(y_true, y_scores)
+    #     y_true = utils.convert_labels_to_one_hot(y_true, num_classes=n_classes)
+    #     fpr = dict()
+    #     tpr = dict()
+    #     roc_auc = dict()
+    #     for i in range(n_classes):
+    #         fpr[i], tpr[i], _ = roc_curve(y_true[:, i], y_scores[:, i])
+    #         roc_auc[i] = auc(fpr[i], tpr[i])
+    #     # Compute micro-average AUC
+    #     fpr["micro"], tpr["micro"], _ = roc_curve(y_true.ravel(), y_scores.ravel())
+    #     roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
+    #     logger.info(f"Auc on the target model: {roc_auc['micro']}")
+    #     class_name = ["Member", "Non-Member", "Generative"]
+    #     if plot:
+    #         # Plot AUC curves for each class
+    #         plt.figure()
+    #         lw = 2
+    #         colors = cycle(['red', 'darkorange', 'green'])
+    #         for i, color in zip(range(n_classes), colors):
+    #             plt.plot(fpr[i], tpr[i], color=color, lw=lw,
+    #                      label='ROC curve on {0} data (AUC = {1:0.2f})'.format(class_name[i], roc_auc[i]))
+    #
+    #         # Plot the micro-average ROC curve
+    #         plt.plot(fpr["micro"], tpr["micro"], color='green', linestyle=':', linewidth=4,
+    #                  label='Overall ROC curve (AUC = {0:0.2f})'
+    #                        ''.format(roc_auc["micro"]))
+    #
+    #         # Plot the randomized ROC curve
+    #         plt.plot([0, 1], [0, 1], 'k--', lw=lw)
+    #         plt.xlim([0.0, 1.0])
+    #         plt.ylim([0.0, 1.05])
+    #         plt.xlabel('False Positive Rate')
+    #         plt.ylabel('True Positive Rate')
+    #         plt.title('Discriminative Performance on Different Categories of Data.')
+    #         plt.legend(loc="lower right")
+    #         plt.show()
 
     @staticmethod
     def eval_attack(y_true, y_scores, plot=True):
-        n_classes = 3
-        y_true, y_scores = utils.tensor_to_ndarray(y_true, y_scores)
-        y_true = utils.convert_labels_to_one_hot(y_true, num_classes=n_classes)
-        fpr = dict()
-        tpr = dict()
-        roc_auc = dict()
-        for i in range(n_classes):
-            fpr[i], tpr[i], _ = roc_curve(y_true[:, i], y_scores[:, i])
-            roc_auc[i] = auc(fpr[i], tpr[i])
-        # Compute micro-average AUC
-        fpr["micro"], tpr["micro"], _ = roc_curve(y_true.ravel(), y_scores.ravel())
-        roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
-        logger.info(f"Auc on the target model: {roc_auc['micro']}")
-        class_name = ["Member", "Non-Member", "Generative"]
+        # y_true, y_scores = utils.tensor_to_ndarray(y_true, y_scores)
+        fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+        auc_score = roc_auc_score(y_true, y_scores)
+        logger.info(f"Auc on the target model: {auc_score}")
         if plot:
-            # Plot AUC curves for each class
-            plt.figure()
-            lw = 2
-            colors = cycle(['red', 'darkorange', 'green'])
-            for i, color in zip(range(n_classes), colors):
-                plt.plot(fpr[i], tpr[i], color=color, lw=lw,
-                         label='ROC curve on {0} data (AUC = {1:0.2f})'.format(class_name[i], roc_auc[i]))
-
-            # Plot the micro-average ROC curve
-            plt.plot(fpr["micro"], tpr["micro"], color='green', linestyle=':', linewidth=4,
-                     label='Overall ROC curve (AUC = {0:0.2f})'
-                           ''.format(roc_auc["micro"]))
-
-            # Plot the randomized ROC curve
-            plt.plot([0, 1], [0, 1], 'k--', lw=lw)
-            plt.xlim([0.0, 1.0])
-            plt.ylim([0.0, 1.05])
+            # plot the ROC curve
+            plt.plot(fpr, tpr, label='ROC curve (AUC = %0.2f)' % auc_score)
             plt.xlabel('False Positive Rate')
             plt.ylabel('True Positive Rate')
-            plt.title('Discriminative Performance on Different Categories of Data.')
-            plt.legend(loc="lower right")
+            plt.legend()
+            # plot the no-skill line for reference
+            plt.plot([0, 1], [0, 1], linestyle='--')
+            # show the plot
             plt.show()
-
     @staticmethod
     def sentence_perturb(dataset, embedding, rate=0.1): #  TODO: whether the perturb number should be identical for sentences with different length?
         per_dataset = deepcopy(dataset)

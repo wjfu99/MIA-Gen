@@ -1,18 +1,18 @@
 tensorboard: True
 random_seed: 42
 
-attack_kind: ml # valid attacks: ml, stat
+attack_kind: stat # valid attacks: ml, stat
 loss_kind: ddpm # valid loss estimation methods: ddpm, ddim
 time_step: 10
 time_sec: 100
-calibration: true
+calibration: false # whether to enable calibration
 sample_number: 1000
 eval_batch_size: 100 # batch size of the evaluation phase
 diffusion_sample_number: 10 # the number of equidistant sampling
-perturbation_number: 101
+perturbation_number: 30 # the number of query
 attack_data_path: attack/attack_data_diffusion
 #
 epoch_number: 50
 load_trained: False # whether to load existing trained attack model
-load_attack_data: True # whether to load prepared attack data if existing.
+load_attack_data: true # whether to load prepared attack data if existing.
 split: [123123, 3213]

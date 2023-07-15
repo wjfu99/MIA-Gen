@@ -35,15 +35,15 @@ torch.cuda.set_device(device)
 
 ## Load text generation model.
 
-target_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-target')
+target_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-100k/checkpoint-263000')
 target_model = DiffusionPipeline.from_pretrained(target_path).to(device)
 
 
 shadow_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-shadow')
-shadow_model = DiffusionPipeline.from_pretrained(shadow_path).to(device)
+shadow_model = None
 
 reference_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-reference')
-reference_model = DiffusionPipeline.from_pretrained(reference_path).to(device)
+reference_model = None
 
 logger.info("Successfully loaded models!")
 
@@ -62,7 +62,7 @@ all_dataset = Dataset.from_dict({"image": files}).cast_column("image", Image())
 datasets = {
     "target": {
         "train": Dataset.from_dict(all_dataset[0:100]),
-        "valid": Dataset.from_dict(all_dataset[10000:10100])
+        "valid": Dataset.from_dict(all_dataset[150000:150100])
             },
     "shadow": {
         "train": Dataset.from_dict(all_dataset[100000:100100]),
@@ -76,5 +76,5 @@ datasets = {
 
 attack_model = AttackModel(target_model, datasets, reference_model, shadow_model, cfg=cfg)
 # attack_model.attack_demo(cfg, target_model)
-attack_model.attack_model_training(cfg=cfg)
+# attack_model.attack_model_training(cfg=cfg)
 attack_model.conduct_attack(cfg=cfg)
