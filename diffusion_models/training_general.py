@@ -667,6 +667,23 @@ def main(args):
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
 
+
+                        unet = accelerator.unwrap_model(model)
+
+                        if args.use_ema:
+                            ema_model.store(unet.parameters())
+                            ema_model.copy_to(unet.parameters())
+
+                        pipeline = DDPMPipeline(
+                            unet=unet,
+                            scheduler=noise_scheduler,
+                        )
+                        pipeline.save_pretrained(save_path)
+
+                        if args.use_ema:
+                            ema_model.restore(unet.parameters())
+
+
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "step": global_step}
             if args.use_ema:
                 logs["ema_decay"] = ema_model.cur_decay_value
