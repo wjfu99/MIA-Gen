@@ -14,5 +14,5 @@ attack_data_path: attack/attack_data_diffusion
 #
 epoch_number: 50
 load_trained: False # whether to load existing trained attack model
-load_attack_data: true # whether to load prepared attack data if existing.
+load_attack_data: false # whether to load prepared attack data if existing.
 split: [123123, 3213]
