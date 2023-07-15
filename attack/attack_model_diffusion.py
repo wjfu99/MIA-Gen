@@ -293,8 +293,8 @@ class AttackModel:
             nonmem_feat = info_dict.nonmem_feat.var_losses / info_dict.nonmem_feat.ori_losses[:, :, None]
             # gen_feat = info_dict.gen_feat.var_losses / info_dict.gen_feat.ori_losses[:, :, None]
 
-        mem_feat = mem_feat[:, 3, :]
-        nonmem_feat = nonmem_feat[:, 3, :]
+        mem_feat = mem_feat[:, 2, :]
+        nonmem_feat = nonmem_feat[:, 2, :]
         # gen_feat = gen_feat[:, 2, :]
 
         if cfg["attack_kind"] == "stat":
