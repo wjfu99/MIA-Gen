@@ -35,7 +35,7 @@ torch.cuda.set_device(device)
 
 ## Load text generation model.
 
-target_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-50k/checkpoint-141000')
+target_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-50k/checkpoint-36000')
 target_model = DiffusionPipeline.from_pretrained(target_path).to(device)
 
 
