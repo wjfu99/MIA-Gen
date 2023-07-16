@@ -476,10 +476,15 @@ class AttackModel:
         # y_true, y_scores = utils.tensor_to_ndarray(y_true, y_scores)
         fpr, tpr, thresholds = roc_curve(y_true, y_scores)
         auc_score = roc_auc_score(y_true, y_scores)
-        logger.info(f"Auc on the target model: {auc_score}")
+        logger.info(f"AUC on the target model: {auc_score}")
+
+        # Finding the threshold point where FPR + TPR equals 1
+        threshold_point = tpr[np.argmin(np.abs(tpr - (1 - fpr)))]
+        logger.info(f"ASR on the target model: {threshold_point}")
+
         if plot:
             # plot the ROC curve
-            plt.plot(fpr, tpr, label='ROC curve (AUC = %0.2f)' % auc_score)
+            plt.plot(fpr, tpr, label=f'ROC curve (AUC = {auc_score}; ASR = {threshold_point})')
             plt.xlabel('False Positive Rate')
             plt.ylabel('True Positive Rate')
             plt.legend()
