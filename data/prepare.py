@@ -29,6 +29,7 @@ def data_prepare(data="celeba", mode="ndarry"):
     elif mode == "ndarry":
         tensor_path = "/mnt/data0/fuwenjie/MIA/MIA-Gen/data/datasets/celeba/celeba64.npz"
         if not utils.check_files_exist(tensor_path):
+            print("Don't find the prepared npz files, start to generate!")
             full_dataset.set_transform(transform_images)
             images = []
             for image in full_dataset:
