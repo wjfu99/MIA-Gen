@@ -1,6 +1,8 @@
 tensorboard: True
 random_seed: 42
 
+target_model: vae # valid model: diffusion, vae
+dataset: celeba # valid dataset: celeba, tiny-in
 attack_kind: stat # valid attacks: ml, stat
 loss_kind: ddpm # valid loss estimation methods: ddpm, ddim
 time_step: 10
@@ -10,7 +12,7 @@ sample_number: 1000
 eval_batch_size: 100 # batch size of the evaluation phase
 diffusion_sample_number: 10 # the number of equidistant sampling
 perturbation_number: 100 # the number of query
-attack_data_path: attack/attack_data_diffusion
+attack_data_path: attack
 #
 epoch_number: 50
 load_trained: False # whether to load existing trained attack model

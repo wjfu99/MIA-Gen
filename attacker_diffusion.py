@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import logging
 
 from attack.attack_model_diffusion import AttackModel
-
+from pythae.models import AutoModel
 from diffusers import DiffusionPipeline
 from datasets import Image, Dataset
 from collections import OrderedDict
@@ -34,16 +34,31 @@ torch.cuda.set_device(device)
 
 
 ## Load text generation model.
+if cfg["target_model"] == "diffusion":
+    target_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-50k/checkpoint-247500')
+    target_model = DiffusionPipeline.from_pretrained(target_path).to(device)
 
-target_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-50k/checkpoint-247500')
-target_model = DiffusionPipeline.from_pretrained(target_path).to(device)
 
+    shadow_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-shadow')
+    shadow_model = None
 
-shadow_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-shadow')
-shadow_model = None
+    reference_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-reference')
+    reference_model = None
+elif cfg["target_model"] == "vae":
+    target_path = sorted(os.listdir(PATH + '/target_model/target_models_on_' + cfg["dataset"] + "_50k"))[-1]
+    target_model = AutoModel.load_from_folder(
+        os.path.join(PATH + '/target_model/target_models_on_' + cfg["dataset"] + "_50k", target_path, 'final_model'))
+    target_model = target_model.to(device)
 
-reference_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-reference')
-reference_model = None
+    reference_path = sorted(os.listdir(PATH + '/target_model/reference_models_on_' + cfg["dataset"]))[-1]
+    reference_model = AutoModel.load_from_folder(
+        os.path.join(PATH + '/target_model/reference_models_on_' + cfg["dataset"], reference_path, 'final_model'))
+    reference_model = reference_model.to(device)
+
+    shadow_path = sorted(os.listdir(PATH + '/target_model/shadow_models_on_' + cfg["dataset"]))[-1]
+    shadow_model = AutoModel.load_from_folder(
+        os.path.join(PATH + '/target_model/shadow_models_on_' + cfg["dataset"], shadow_path, 'final_model'))
+    shadow_model = shadow_model.to(device)
 
 logger.info("Successfully loaded models!")
 

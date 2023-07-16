@@ -47,6 +47,8 @@ class MLAttckerModel(nn.Module): # TODO: we can use a CNN model for attack
 
 class AttackModel:
     def __init__(self, target_model, datasets, reference_model, shadow_model, cfg):
+        if cfg["target_model"] == "vae":
+            self.target_model_revision(target_model)
         self.target_model = target_model
         self.datasets = datasets
         self.kind = cfg['attack_kind']
@@ -145,7 +147,7 @@ class AttackModel:
         loss = utils.tensor_to_ndarray(loss)[0]
         return loss
 
-    def generative_model_eval(self, model, input, cfg):
+    def diffusion_eval(self, model, input, cfg):
         outputs = []
         data_loader = DataLoader(
             dataset=input,
@@ -177,6 +179,33 @@ class AttackModel:
         output = np.concatenate(outputs, axis=0)
         return output
 
+    def vae_eval(self, model, input, cfg):
+        outputs = []
+        data_loader = DataLoader(
+            dataset=input,
+            batch_size=cfg["eval_batch_size"],
+            shuffle=False,
+            num_workers=32,
+            pin_memory=torch.cuda.is_available()
+        )
+        for iteration, batch in enumerate(data_loader):
+            input_dict = {"data": batch["input"].cuda()}
+            output_batch = self.output_reformat(model(input_dict)).loss
+            outputs.append(output_batch)
+        output = np.concatenate(outputs, axis=0)
+        # input = input.cuda()
+        # num_inputs = input.shape[0]
+        # outputs = []
+        # model.eval()
+        #
+        # for i in range(0, num_inputs, batch_size):
+        #     input_batch = input[i:i + batch_size]
+        #     input_dict = {"data": input_batch}
+        #     output_batch = self.output_reformat(model(input_dict)).loss
+        #     outputs.append(output_batch)
+        # output = np.concatenate(outputs, axis=0)
+        return output
+
     def eval_perturb(self, model, dataset, cfg):
         """
         Evaluate the loss of the perturbed data
@@ -188,23 +217,25 @@ class AttackModel:
         ref_per_losses = []
         # revising some original methods of target model.
         # self.target_model_revision(model)
+        model_eval_function = getattr(self, cfg["target_model"] + "_eval")
+        dataset_perturbation_function = self.image_dataset_perturbation if cfg["target_model"] == "vae" else self.norm_image_dataset_perturbation
         ori_dataset = deepcopy(dataset)
-        ori_dataset.set_transform(utils.transform_images)
-        ori_losses = self.generative_model_eval(model, ori_dataset, cfg)
-        ref_ori_losses = self.generative_model_eval(self.reference_model, ori_dataset, cfg) if cfg["calibration"] else None
+        ori_dataset.set_transform(self.transform_images if cfg["target_model"] == "vae" else self.norm_transform_images)
+        ori_losses = model_eval_function(model, ori_dataset, cfg)
+        ref_ori_losses = model_eval_function(self.reference_model, ori_dataset, cfg) if cfg["calibration"] else None
         for _ in tqdm(range(cfg["perturbation_number"])):
-            per_dataset = self.image_dataset_perturbation(dataset)
-            per_loss = self.generative_model_eval(model, per_dataset, cfg)
-            per_losses.append(per_loss[:, :, None])
-            ref_per_loss = self.generative_model_eval(self.reference_model, per_dataset, cfg) if cfg["calibration"] else None
+            per_dataset = dataset_perturbation_function(dataset)
+            per_loss = model_eval_function(model, per_dataset, cfg)
+            per_losses.append(np.expand_dims(per_loss, -1))
+            ref_per_loss = model_eval_function(self.reference_model, per_dataset, cfg) if cfg["calibration"] else None
             try:
-                ref_per_losses.append(ref_per_loss[:, :, None])
+                ref_per_losses.append(np.expand_dims(ref_per_loss, -1))
             except:
                 pass
-        per_losses = np.concatenate(per_losses, axis=2)
-        var_losses = per_losses - ori_losses[:, :, None]
-        ref_per_losses = np.concatenate(ref_per_losses, axis=2) if cfg["calibration"] else None
-        ref_var_losses = ref_per_losses - ref_ori_losses[:, :, None] if cfg["calibration"] else None
+        per_losses = np.concatenate(per_losses, axis=-1)
+        var_losses = per_losses - np.expand_dims(ori_losses, -1)
+        ref_per_losses = np.concatenate(ref_per_losses, axis=-1) if cfg["calibration"] else None
+        ref_var_losses = ref_per_losses - np.expand_dims(ref_ori_losses, -1) if cfg["calibration"] else None
 
         output = (Dict(
             per_losses=per_losses,
@@ -233,7 +264,7 @@ class AttackModel:
 
     def data_prepare(self, kind, cfg):
         logger.info("Preparing data...")
-        data_path = os.path.join(PATH, cfg["attack_data_path"])
+        data_path = os.path.join(PATH, cfg["attack_data_path"], f"attack_data_{cfg['target_model']}@{cfg['dataset']}")
         target_model = getattr(self, kind + "_model")
         mem_data = self.datasets[kind]["train"]
         nonmem_data = self.datasets[kind]["valid"]
@@ -282,20 +313,20 @@ class AttackModel:
         # mem_info = info_dict.mem_feat
         # ref_mem_info = info_dict.ref_mem_feat
         if cfg["calibration"]:
-            mem_feat = info_dict.mem_feat.var_losses / info_dict.mem_feat.ori_losses[:, :, None]\
-                       - info_dict.ref_mem_feat.ref_var_losses / info_dict.ref_mem_feat.ref_ori_losses[:, :, None]
-            nonmem_feat = info_dict.nonmem_feat.var_losses / info_dict.nonmem_feat.ori_losses[:, :, None]\
-                       - info_dict.ref_nonmem_feat.ref_var_losses / info_dict.ref_nonmem_feat.ref_ori_losses[:, :, None]
+            mem_feat = info_dict.mem_feat.var_losses / np.expand_dims(info_dict.mem_feat.ori_losses, -1)\
+                       - info_dict.ref_mem_feat.ref_var_losses / np.expand_dims(info_dict.ref_mem_feat.ref_ori_losses, -1)
+            nonmem_feat = info_dict.nonmem_feat.var_losses / np.expand_dims(info_dict.nonmem_feat.ori_losses, -1)\
+                       - info_dict.ref_nonmem_feat.ref_var_losses / np.expand_dims(info_dict.ref_nonmem_feat.ref_ori_losses, -1)
             # gen_feat = info_dict.gen_feat.var_losses / info_dict.gen_feat.ori_losses[:, :, None] \
             #               - info_dict.ref_gen_feat.ref_var_losses / info_dict.ref_gen_feat.ref_ori_losses[:, :, None]
         else:
-            mem_feat = info_dict.mem_feat.var_losses / info_dict.mem_feat.ori_losses[:, :, None]
-            nonmem_feat = info_dict.nonmem_feat.var_losses / info_dict.nonmem_feat.ori_losses[:, :, None]
+            mem_feat = info_dict.mem_feat.var_losses / np.expand_dims(info_dict.mem_feat.ori_losses, -1)
+            nonmem_feat = info_dict.nonmem_feat.var_losses / np.expand_dims(info_dict.nonmem_feat.ori_losses, -1)
             # gen_feat = info_dict.gen_feat.var_losses / info_dict.gen_feat.ori_losses[:, :, None]
-
-        mem_feat = mem_feat[:, 2, :]
-        nonmem_feat = nonmem_feat[:, 2, :]
-        # gen_feat = gen_feat[:, 2, :]
+        if cfg["target_model"] == "diffusion":
+            mem_feat = mem_feat[:, 2, :]
+            nonmem_feat = nonmem_feat[:, 2, :]
+            # gen_feat = gen_feat[:, 2, :]
 
         if cfg["attack_kind"] == "stat":
             feat = np.concatenate([mem_feat.mean(axis=-1), nonmem_feat.mean(axis=-1)])
@@ -496,17 +527,57 @@ class AttackModel:
         noisy_tensor = torch.clamp(noisy_tensor, -1.0, 1.0)
         return noisy_tensor
 
-    def image_dataset_perturbation(self, dataset):
-        # create a tensor of gaussian noise with the same shape as the input tensor
-        # perturbation = transforms.Compose([
-        #     transforms.ToTensor(),
-        #     transforms.Normalize([0.5], [0.5]),
-        #     self.gaussian_noise_tensor,
-        # ])
+    @staticmethod
+    def norm_transform_images(examples):
+        # Preprocessing the datasets and DataLoaders creation.
+        # if norm: -1 : 1
+        augmentations = transforms.Compose(
+            [
+                transforms.Resize(64, interpolation=transforms.InterpolationMode.BILINEAR),
+                transforms.CenterCrop(64) if True else transforms.RandomCrop(64),
+                transforms.RandomHorizontalFlip() if False else transforms.Lambda(lambda x: x),
+                transforms.ToTensor(),
+                transforms.Normalize([0.5], [0.5])
+            ]
+        )
+        images = [augmentations(image.convert("RGB")) for image in examples["image"]]
+        return {"input": images}
+
+    @staticmethod
+    def transform_images(examples):
+        # Preprocessing the datasets and DataLoaders creation.
+        # if norm: -1 : 1
+        augmentations = transforms.Compose(
+            [
+                transforms.Resize(64, interpolation=transforms.InterpolationMode.BILINEAR),
+                transforms.CenterCrop(64) if True else transforms.RandomCrop(64),
+                transforms.RandomHorizontalFlip() if False else transforms.Lambda(lambda x: x),
+                transforms.ToTensor()
+            ]
+        )
+        images = [augmentations(image.convert("RGB")) for image in examples["image"]]
+        return {"input": images}
+
+    @staticmethod
+    def norm_image_dataset_perturbation(dataset):
         perturbation = transforms.Compose([
             transforms.ToTensor(),
             transforms.RandomResizedCrop(size=(64, 64), scale=(0.8, 0.8)),
             transforms.Normalize([0.5], [0.5]),
+        ])
+        def transform_images(examples):
+            images = [perturbation(image.convert("RGB")) for image in examples["image"]]
+            return {"input": images}
+        per_dataset = deepcopy(dataset)
+        per_dataset.set_transform(transform_images)
+
+        return per_dataset
+
+    @staticmethod
+    def image_dataset_perturbation(dataset):
+        perturbation = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.RandomResizedCrop(size=(64, 64), scale=(0.8, 0.8))
         ])
         def transform_images(examples):
             images = [perturbation(image.convert("RGB")) for image in examples["image"]]

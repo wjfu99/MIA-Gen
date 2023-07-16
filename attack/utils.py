@@ -148,18 +148,18 @@ def get_file_names(folder_path):
     return file_names
 
 
-# Preprocessing the datasets and DataLoaders creation.
-augmentations = transforms.Compose(
-    [
-        transforms.Resize(64, interpolation=transforms.InterpolationMode.BILINEAR),
-        transforms.CenterCrop(64) if True else transforms.RandomCrop(64),
-        transforms.RandomHorizontalFlip() if False else transforms.Lambda(lambda x: x),
-        transforms.ToTensor(),
-        transforms.Normalize([0.5], [0.5]),
-    ]
-)
-
-def transform_images(examples):
+def transform_images(examples, norm=True):
+    # Preprocessing the datasets and DataLoaders creation.
+    # if norm: -1 : 1
+    augmentations = transforms.Compose(
+        [
+            transforms.Resize(64, interpolation=transforms.InterpolationMode.BILINEAR),
+            transforms.CenterCrop(64) if True else transforms.RandomCrop(64),
+            transforms.RandomHorizontalFlip() if False else transforms.Lambda(lambda x: x),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5], [0.5]) if norm else transforms.Lambda(lambda x: x),
+        ]
+    )
     images = [augmentations(image.convert("RGB")) for image in examples["image"]]
     return {"input": images}
 
