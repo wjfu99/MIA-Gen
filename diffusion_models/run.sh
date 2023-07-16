@@ -97,7 +97,7 @@ accelerate launch training_general.py \
   --learning_rate=1e-4 \
   --lr_warmup_steps=500 \
   --mixed_precision=no \
-  --train_sta_idx=0 \
-  --train_end_idx=120000 \
+  --train_sta_idx=120000 \
+  --train_end_idx=170000 \
   --eval_sta_idx=170000 \
   --eval_end_idx=180000
