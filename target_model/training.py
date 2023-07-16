@@ -1,8 +1,13 @@
 import argparse
 import logging
-import os
 
 import numpy as np
+
+import os
+import sys
+here = os.path.dirname(__file__)
+sys.path.append(os.path.join(here, '..'))
+
 
 from pythae.pipelines import TrainingPipeline
 from pythae.trainers import (
