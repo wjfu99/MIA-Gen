@@ -31,17 +31,6 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 
-# # create normal sampler
-# normal_samper = NormalSampler(
-#     model=trained_model
-# )
-#
-# # sample
-# gen_data = normal_samper.sample(
-#     num_samples=25,
-#     output_dir='./data/mnist/gen_data'
-# )
-
 dataset = "celeba"
 
 target_path = sorted(os.listdir(PATH + '/target_model/target_models_on_' + dataset))[-1]

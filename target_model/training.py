@@ -10,6 +10,7 @@ from pythae.trainers import (
     BaseTrainerConfig,
     CoupledOptimizerTrainerConfig,
 )
+from data import prepare
 
 logger = logging.getLogger(__name__)
 console = logging.StreamHandler()
@@ -96,6 +97,26 @@ ap.add_argument(
     "--wandb_entity",
     help="wandb entity name",
     default="benchmark_team",
+)
+ap.add_argument(
+    "--train_sta_idx",
+    type=int,
+    default=None,
+)
+ap.add_argument(
+    "--train_end_idx",
+    type=int,
+    default=None,
+)
+ap.add_argument(
+    "--eval_sta_idx",
+    type=int,
+    default=None,
+)
+ap.add_argument(
+    "--eval_end_idx",
+    type=int,
+    default=None,
 )
 
 args = ap.parse_args()
@@ -238,9 +259,9 @@ def main(args):
 
     try:
         if args.dataset == "celeba":
-            celeba64_dataset = np.load("./data/celeba64/celeba64.npz")["arr_0"] / 255.0
-            train_data = celeba64_dataset[0:50000]
-            eval_data = celeba64_dataset[50000:60000]
+            celeba64_dataset = prepare.data_prepare("celeba", mode="ndarry")
+            train_data = celeba64_dataset[args.train_sta_idx:args.train_end_idx]
+            eval_data = celeba64_dataset[args.eval_sta_idx:args.eval_end_idx]
         else:
             logger.info(f"\nLoading {args.dataset} data...\n")
             train_data = (
