@@ -1,6 +1,6 @@
 {
   "name": "BaseTrainerConfig",
-  "output_dir": "target_models_on_celeba_50k",
+  "output_dir": "shadow_models_on_celeba_50k",
   "per_device_train_batch_size": 100,
   "per_device_eval_batch_size": 100,
   "num_epochs": 100,
