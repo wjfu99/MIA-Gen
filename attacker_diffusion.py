@@ -4,6 +4,7 @@ import torch
 import pythae
 import torch.nn.functional as F
 import logging
+import random
 
 from attack.attack_model_diffusion import AttackModel
 from pythae.models import AutoModel
@@ -72,20 +73,33 @@ files = utils.get_file_names("/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/
 all_dataset = Dataset.from_dict({"image": files}).cast_column("image", Image())
 
 
-
+# data_split = {
+#     "target": {
+#         "train": (0, 50000),
+#         "valid": (50000, 60000)
+#     },
+#     "shadow": {
+#         "train": (60000, 110000),
+#         "valid": (110000, 120000)
+#     },
+#     "reference": {
+#         "train": (120000, 170000),
+#         "valid": (170000, 180000)
+#     }
+# }
 
 datasets = {
     "target": {
-        "train": Dataset.from_dict(all_dataset[0:100]),
-        "valid": Dataset.from_dict(all_dataset[150000:150100])
+        "train": Dataset.from_dict(all_dataset[random.sample(range(0, 50000), cfg["sample_number"])]),
+        "valid": Dataset.from_dict(all_dataset[random.sample(range(50000, 60000), cfg["sample_number"])])
             },
     "shadow": {
-        "train": Dataset.from_dict(all_dataset[100000:100100]),
-        "valid": Dataset.from_dict(all_dataset[110000:110100])
+        "train": Dataset.from_dict(all_dataset[random.sample(range(60000, 110000), cfg["sample_number"])]),
+        "valid": Dataset.from_dict(all_dataset[random.sample(range(110000, 120000), cfg["sample_number"])])
     },
     "reference": {
-        "train": Dataset.from_dict(all_dataset[150000:150100]),
-        "valid": Dataset.from_dict(all_dataset[160000:160100])
+        "train": Dataset.from_dict(all_dataset[random.sample(range(120000, 170000), cfg["sample_number"])]),
+        "valid": Dataset.from_dict(all_dataset[random.sample(range(170000, 180000), cfg["sample_number"])])
     }
 }
 
