@@ -342,7 +342,7 @@ class AttackModel:
 
     def attack_model_training(self, cfg):
 
-        save_path = os.path.join(PATH, "attack/attack_model_diffusion", 'attack_model.pth')
+        save_path = os.path.join(PATH, cfg["attack_data_path"], f"attack_model_{cfg['target_model']}@{cfg['dataset']}", 'attack_model.pth')
 
         raw_info = self.data_prepare("shadow", cfg)
         eval_raw_info = self.data_prepare("target", cfg)
