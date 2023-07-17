@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'tools'))
 from tools.utils import *
 from sklearn.neighbors import NearestNeighbors
 from pythae.models import AutoModel
+from data import prepare
 
 ### Hyperparameters
 K = 5
@@ -20,7 +21,7 @@ BATCH_SIZE = 10
 #############################################################################################################
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exp_name', '-name', type=str, required=True,
+    parser.add_argument('--exp_name', '-name', type=str, default="vae",
                         help='the name of the current experiment (used to set up the save_dir)')
     # parser.add_argument('--gan_model_dir', '-gdir', type=str, required=True,
     #                     help='directory for the Victim GAN model (save the generated.npz file)')
@@ -111,9 +112,9 @@ def main():
 
     PATH = os.path.dirname(os.path.abspath(__file__))
     dataset = "celeba"
-    target_model = sorted(os.listdir(os.path.join(PATH, '../../target_model/my_models_on_' + dataset)))[-2]
+    target_model = sorted(os.listdir(os.path.join(PATH, f'../../target_model/target_models_on_{dataset}_50k')))[-1]
     trained_model = AutoModel.load_from_folder(
-    os.path.join(PATH, '../../target_model/my_models_on_' + dataset, target_model, 'final_model'))
+    os.path.join(PATH, f'../../target_model/target_models_on_{dataset}_50k', target_model, 'final_model'))
     trained_model = trained_model.cuda()
     trained_model.eval()
 
@@ -138,9 +139,9 @@ def main():
 
     ### load query images
     PATH = os.path.dirname(os.path.abspath(__file__))
-    celeba64_dataset = np.load(os.path.join(PATH, "../../target_model/data/celeba64/celeba64.npz"))["arr_0"] / 255.0
+    celeba64_dataset = prepare.data_prepare("celeba", mode="ndarry")
     pos_query_imgs = celeba64_dataset[:100]
-    neg_query_imgs = celeba64_dataset[10000:10100]
+    neg_query_imgs = celeba64_dataset[100000:100100]
 
     # pos_data_paths = get_filepaths_from_dir(args.pos_data_dir, ext='png')[: args.data_num]
     # pos_query_imgs = np.array([read_image(f, resolution) for f in pos_data_paths])
