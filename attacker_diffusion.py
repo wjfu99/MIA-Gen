@@ -51,14 +51,14 @@ elif cfg["target_model"] == "vae":
         os.path.join(PATH + '/target_model/target_models_on_' + cfg["dataset"] + "_50k", target_path, 'final_model'))
     target_model = target_model.to(device)
 
-    reference_path = sorted(os.listdir(PATH + '/target_model/reference_models_on_' + cfg["dataset"]))[-1]
+    reference_path = sorted(os.listdir(PATH + '/target_model/reference_models_on_' + cfg["dataset"] + "_50k"))[-1]
     reference_model = AutoModel.load_from_folder(
-        os.path.join(PATH + '/target_model/reference_models_on_' + cfg["dataset"], reference_path, 'final_model'))
+        os.path.join(PATH + '/target_model/reference_models_on_' + cfg["dataset"] + "_50k", reference_path, 'final_model'))
     reference_model = reference_model.to(device)
 
-    shadow_path = sorted(os.listdir(PATH + '/target_model/shadow_models_on_' + cfg["dataset"]))[-1]
+    shadow_path = sorted(os.listdir(PATH + '/target_model/shadow_models_on_' + cfg["dataset"] + "_50k"))[-1]
     shadow_model = AutoModel.load_from_folder(
-        os.path.join(PATH + '/target_model/shadow_models_on_' + cfg["dataset"], shadow_path, 'final_model'))
+        os.path.join(PATH + '/target_model/shadow_models_on_' + cfg["dataset"] + "_50k", shadow_path, 'final_model'))
     shadow_model = shadow_model.to(device)
 
 logger.info("Successfully loaded models!")

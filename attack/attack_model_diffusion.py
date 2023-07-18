@@ -52,7 +52,7 @@ class AttackModel:
         self.target_model = target_model
         self.datasets = datasets
         self.kind = cfg['attack_kind']
-        if shadow_model is not None and cfg['attack_kind'] == "ml":
+        if shadow_model is not None and cfg['attack_kind'] == "nn":
             self.shadow_model = shadow_model
             self.is_model_training = False
         if reference_model is not None:
@@ -347,11 +347,11 @@ class AttackModel:
         raw_info = self.data_prepare("shadow", cfg)
         eval_raw_info = self.data_prepare("target", cfg)
 
-        feat, ground_truth = self.feat_prepare(raw_info)
-        eval_feat, eval_ground_truth = self.feat_prepare(eval_raw_info)
+        feat, ground_truth = self.feat_prepare(raw_info, cfg)
+        eval_feat, eval_ground_truth = self.feat_prepare(eval_raw_info, cfg)
 
         feature_dim = feat.shape[-1]
-        attack_model = MLAttckerModel(feature_dim, output_size=3).cuda()
+        attack_model = MLAttckerModel(feature_dim, output_size=2).cuda()
         if cfg["load_trained"] and utils.check_files_exist(save_path):
             attack_model.load_state_dict(torch.load(save_path))
             self.attack_model = attack_model
@@ -359,7 +359,7 @@ class AttackModel:
             return
         optimizer = optim.Adam(attack_model.parameters(), lr=0.001, weight_decay=0.0005)
         # schedular = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[])
-        weight = torch.Tensor([1, 1, 1]).cuda()
+        weight = torch.Tensor([1, 1]).cuda()
         criterion = torch.nn.CrossEntropyLoss(weight=weight)
         print_freq = 10
         for i in range(cfg["epoch_number"]):
@@ -374,23 +374,27 @@ class AttackModel:
                 attack_model.eval()
                 eval_predict = attack_model(eval_feat)
                 print(f"Epoch {i} - Loss: {loss.item()}")
-                self.eval_attack(ground_truth, predict, plot=False)
-                self.eval_attack(eval_ground_truth, eval_predict, plot=False)
+                # ground_truth, predict, eval_ground_truth, eval_predict = utils.tensor_to_ndarray(ground_truth, predict, eval_ground_truth, eval_predict)
+                self.eval_attack(ground_truth, predict[:, 1], plot=False)
+                self.eval_attack(eval_ground_truth, eval_predict[:, 1], plot=False)
         self.is_model_training = True
         self.attack_model = attack_model
         # Save model
+        folder_path = os.path.dirname(save_path)
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
         torch.save(attack_model.state_dict(), save_path)
 
     def conduct_attack(self, cfg):
-        if cfg["attack_kind"] == 'ml':
+        if cfg["attack_kind"] == 'nn':
             if not self.is_model_training:
                 self.attack_model_training(cfg)
             attack_model = self.attack_model
             raw_info = self.data_prepare("target", cfg)
             feat, ground_truth = self.feat_prepare(raw_info, cfg)
             predict = attack_model(feat)
-            predict, ground_truth = utils.tensor_to_ndarray(predict, ground_truth)
-            self.eval_attack(ground_truth, predict)
+            # predict, ground_truth = utils.tensor_to_ndarray(predict, ground_truth)
+            self.eval_attack(ground_truth, predict[:, 1])
         elif cfg["attack_kind"] == 'stat':
             raw_info = self.data_prepare("target", cfg)
             feat, ground_truth = self.feat_prepare(raw_info, cfg)
@@ -473,7 +477,8 @@ class AttackModel:
 
     @staticmethod
     def eval_attack(y_true, y_scores, plot=True):
-        # y_true, y_scores = utils.tensor_to_ndarray(y_true, y_scores)
+        if type(y_true) == torch.Tensor:
+            y_true, y_scores = utils.tensor_to_ndarray(y_true, y_scores)
         fpr, tpr, thresholds = roc_curve(y_true, y_scores)
         auc_score = roc_auc_score(y_true, y_scores)
         logger.info(f"AUC on the target model: {auc_score}")
