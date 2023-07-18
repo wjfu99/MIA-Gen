@@ -5,6 +5,7 @@ import pickle
 import argparse
 from tqdm import tqdm
 import torch
+from data import prepare
 
 ### import tools
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'tools'))
@@ -29,15 +30,15 @@ RANDOM_SEED = 1000
 #############################################################################################################
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exp_name', '-name', type=str, required=True,
+    parser.add_argument('--exp_name', '-name', type=str, default="vae",
                         help='the name of the current experiment (used to set up the save_dir)')
-    parser.add_argument('--gan_model_dir', '-gdir', type=str, required=True,
+    parser.add_argument('--gan_model_dir', '-gdir', type=str,
                         help='directory for the Victim GAN model')
     parser.add_argument('--pos_data_dir', '-posdir', type=str,
                         help='the directory for the positive (training) query images set')
     parser.add_argument('--neg_data_dir', '-negdir', type=str,
                         help='the directory for the negative (testing) query images set')
-    parser.add_argument('--data_num', '-dnum', type=int, default=5,
+    parser.add_argument('--data_num', '-dnum', type=int, default=100,
                         help='the number of query images to be considered')
     parser.add_argument('--batch_size', '-bs', type=int, default=1,
                         help='batch size (should not be too large for better optimization performance)')
@@ -225,9 +226,9 @@ def main():
     ### set up Generator
     PATH = os.path.dirname(os.path.abspath(__file__))
     dataset = "celeba"
-    target_model = sorted(os.listdir(os.path.join(PATH, '../../target_model/my_models_on_' + dataset)))[-2]
+    target_model = sorted(os.listdir(os.path.join(PATH, f'../../target_model/target_models_on_{dataset}_50k')))[-1]
     trained_model = AutoModel.load_from_folder(
-    os.path.join(PATH, '../../target_model/my_models_on_' + dataset, target_model, 'final_model'))
+    os.path.join(PATH, f'../../target_model/target_models_on_{dataset}_50k', target_model, 'final_model'))
     trained_model = trained_model.cuda()
     netG = trained_model
     # network_path = os.path.join(load_dir, 'netG.pt')
@@ -266,9 +267,9 @@ def main():
     # pos_data_paths = get_filepaths_from_dir(args.pos_data_dir, ext='png')[: args.data_num]
     # pos_query_imgs = np.array([read_image(f, resolution) for f in pos_data_paths])
 
-    celeba64_dataset = np.load(os.path.join(PATH, "../../target_model/data/celeba64/celeba64.npz"))["arr_0"] / 255.0
+    celeba64_dataset = prepare.data_prepare("celeba", mode="ndarry")
     pos_query_imgs = np.transpose(celeba64_dataset[:100], (0, 2, 3, 1))
-    neg_query_imgs = np.transpose(celeba64_dataset[10000:10100], (0, 2, 3, 1))
+    neg_query_imgs = np.transpose(celeba64_dataset[100000:100100], (0, 2, 3, 1))
 
     query_loss, query_z, query_xhat = optimize_z_bb(loss_model,
                                                     init_val_pos,
