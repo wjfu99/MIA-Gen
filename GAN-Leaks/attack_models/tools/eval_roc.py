@@ -34,7 +34,7 @@ def plot_hist(pos_dist, neg_dist, save_file):
 #############################################################################################################
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--result_load_dir', '-ldir', type=str, default="/mnt/data0/fuwenjie/MIA/MIA-Gen/GAN-Leaks/attack_models/results/pbb/vae",
+    parser.add_argument('--result_load_dir', '-ldir', type=str, default="/mnt/data0/fuwenjie/MIA/MIA-Gen/GAN-Leaks/attack_models/results/pbb/vae_1k",
                         help='directory of the attack result')
     parser.add_argument('--attack_type', type=str, choices=['fbb', 'pbb', 'wb'], default="pbb",
                         help='type of the attack')

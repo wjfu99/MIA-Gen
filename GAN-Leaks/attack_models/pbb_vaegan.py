@@ -30,7 +30,7 @@ RANDOM_SEED = 1000
 #############################################################################################################
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exp_name', '-name', type=str, default="vae",
+    parser.add_argument('--exp_name', '-name', type=str, default="vae_1k",
                         help='the name of the current experiment (used to set up the save_dir)')
     parser.add_argument('--gan_model_dir', '-gdir', type=str,
                         help='directory for the Victim GAN model')
@@ -56,7 +56,9 @@ def parse_arguments():
                         help='the objective function type')
     parser.add_argument('--if_norm_reg', '-reg', action='store_true', default=True,
                         help='enable the norm regularizer')
-    parser.add_argument('--maxfunc', '-mf', type=int, default=10,
+    # for powell Maximum allowed number of iterations and function evaluations.
+    # Will default to N*1000, where N is the number of variable
+    parser.add_argument('--maxfunc', '-mf', type=int, default=1,
                         help='the maximum number of function calls (for scipy optimizer)')
     return parser.parse_args()
 
