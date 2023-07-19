@@ -6,6 +6,10 @@ import argparse
 from tqdm import tqdm
 import torch
 
+here = os.path.dirname(__file__)
+
+sys.path.append(os.path.join(here, '../..'))
+
 ### import tools
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'tools'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'tools/lpips_pytorch'))
@@ -22,7 +26,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../gan_models/vaegan
 ### Hyperparameters
 LAMBDA2 = 0.2
 LAMBDA3 = 0.001
-LBFGS_LR = 0.015
+LBFGS_LR = 0.05
 RANDOM_SEED = 1000
 
 
@@ -31,7 +35,7 @@ RANDOM_SEED = 1000
 #############################################################################################################
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exp_name', '-name', type=str, default="vae",
+    parser.add_argument('--exp_name', '-name', type=str, default="vae_test",
                         help='the name of the current experiment (used to set up the save_dir)')
     parser.add_argument('--gan_model_dir', '-gdir', type=str,
                         help='directory for the Victim GAN model')
@@ -121,7 +125,7 @@ class Loss(torch.nn.Module):
             self.loss_l2_fn = lambda x, y: torch.mean((y - x) ** 2, dim=[1, 2, 3])
 
     def forward(self, z, x_gt):
-        self.x_hat = self.netG.decoder(z)['reconstruction'].detach()
+        self.x_hat = self.netG.decoder(z)['reconstruction']
         self.loss_lpips = self.loss_lpips_fn(self.x_hat, x_gt)
         self.loss_l2 = self.loss_l2_fn(self.x_hat, x_gt)
         self.vec_loss = LAMBDA2 * self.loss_lpips + self.loss_l2
@@ -160,15 +164,16 @@ def optimize_z_lbfgs(loss_model,
                 visualize_gt(x_batch, check_folder(save_dir_batch))
 
                 ### initialize z
-
-                z = Variable(torch.FloatTensor(init_val[i * BATCH_SIZE:(i + 1) * BATCH_SIZE])).cuda()
-                z = z.squeeze(-1)
-                z = z.squeeze(-1)
+                z = torch.FloatTensor(init_val[i * BATCH_SIZE:(i + 1) * BATCH_SIZE])
+                z = Variable(z).cuda()
+                # z = z.squeeze(-1)
+                # z = z.squeeze(-1)
                 z_model = LatentZ(z)
 
                 ### LBFGS optimizer
-                optimizer = FullBatchLBFGS(z_model.parameters(), lr=LBFGS_LR, history_size=20, line_search='Wolfe',
-                                           debug=False)
+                # optimizer = FullBatchLBFGS(z_model.parameters(), lr=LBFGS_LR, history_size=20, line_search='Wolfe',
+                #                            debug=False)
+                optimizer = torch.optim.Adam(z_model.parameters(), lr=0.001)
 
                 ### optimize
                 loss_progress = []
@@ -182,12 +187,13 @@ def optimize_z_lbfgs(loss_model,
                     return final_loss
 
                 for step in range(max_func):
-                    loss_model.forward(z_model.forward(), x_gt)
+                    # loss_model.forward(z_model.forward(), x_gt)
                     final_loss = closure()
                     final_loss.backward()
 
-                    options = {'closure': closure, 'current_loss': final_loss, 'max_ls': 20}
-                    obj, grad, lr, _, _, _, _, _ = optimizer.step(options)
+                    # options = {'closure': closure, 'current_loss': final_loss, 'max_ls': 20}
+                    # obj, grad, lr, _, _, _, _, _ = optimizer.step(options)
+                    optimizer.step()
 
                     if step == 0:
                         ### store init
@@ -270,9 +276,9 @@ def main():
 
     elif args.initialize_type == 'random':
         np.random.seed(RANDOM_SEED)
-        init_val_np = np.random.normal(size=(Z_DIM, 1, 1))
+        init_val_np = np.random.normal(size=(Z_DIM))
         init_val_np = init_val_np / np.sqrt(np.mean(np.square(init_val_np)) + 1e-8)
-        init_val = np.tile(init_val_np, (args.data_num, 1, 1, 1)).astype(np.float32)
+        init_val = np.tile(init_val_np, (args.data_num, 1)).astype(np.float32)
         init_val_pos = init_val
         init_val_neg = init_val
 
