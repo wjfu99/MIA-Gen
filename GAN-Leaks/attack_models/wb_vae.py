@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../gan_models/vaegan
 ### Hyperparameters
 LAMBDA2 = 0.2
 LAMBDA3 = 0.001
-LBFGS_LR = 0.05
+LBFGS_LR = 0.015
 RANDOM_SEED = 1000
 
 
@@ -35,7 +35,7 @@ RANDOM_SEED = 1000
 #############################################################################################################
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exp_name', '-name', type=str, default="vae_test",
+    parser.add_argument('--exp_name', '-name', type=str, default="vae_ori",
                         help='the name of the current experiment (used to set up the save_dir)')
     parser.add_argument('--gan_model_dir', '-gdir', type=str,
                         help='directory for the Victim GAN model')
@@ -171,9 +171,9 @@ def optimize_z_lbfgs(loss_model,
                 z_model = LatentZ(z)
 
                 ### LBFGS optimizer
-                # optimizer = FullBatchLBFGS(z_model.parameters(), lr=LBFGS_LR, history_size=20, line_search='Wolfe',
-                #                            debug=False)
-                optimizer = torch.optim.Adam(z_model.parameters(), lr=0.001)
+                optimizer = FullBatchLBFGS(z_model.parameters(), lr=LBFGS_LR, history_size=20, line_search='Wolfe',
+                                           debug=False)
+                # optimizer = torch.optim.Adam(z_model.parameters(), lr=0.001)
 
                 ### optimize
                 loss_progress = []
@@ -191,9 +191,9 @@ def optimize_z_lbfgs(loss_model,
                     final_loss = closure()
                     final_loss.backward()
 
-                    # options = {'closure': closure, 'current_loss': final_loss, 'max_ls': 20}
-                    # obj, grad, lr, _, _, _, _, _ = optimizer.step(options)
-                    optimizer.step()
+                    options = {'closure': closure, 'current_loss': final_loss, 'max_ls': 20}
+                    obj, grad, lr, _, _, _, _, _ = optimizer.step(options)
+                    # optimizer.step()
 
                     if step == 0:
                         ### store init
