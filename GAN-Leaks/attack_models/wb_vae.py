@@ -9,12 +9,15 @@ import torch
 ### import tools
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'tools'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'tools/lpips_pytorch'))
-from utils import *
-import lpips_pytorch as ps
-from LBFGS_pytorch import FullBatchLBFGS
+from tools.utils import *
+import tools.lpips_pytorch as ps
+from tools.LBFGS_pytorch import FullBatchLBFGS
+from torch.autograd import Variable
+from data import prepare
+from pythae.models import AutoModel
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../gan_models/vaegan'))
-from train import *
+# from train import *
 
 ### Hyperparameters
 LAMBDA2 = 0.2
@@ -28,9 +31,9 @@ RANDOM_SEED = 1000
 #############################################################################################################
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exp_name', '-name', type=str, required=True,
+    parser.add_argument('--exp_name', '-name', type=str, default="vae",
                         help='the name of the current experiment (used to set up the save_dir)')
-    parser.add_argument('--gan_model_dir', '-gdir', type=str, required=True,
+    parser.add_argument('--gan_model_dir', '-gdir', type=str,
                         help='directory for the Victim GAN model')
     parser.add_argument('--pos_data_dir', '-posdir', type=str,
                         help='the directory for the positive (training) query images set')
@@ -66,7 +69,7 @@ def check_args(args):
     :return:
     '''
     ## load dir
-    assert os.path.exists(args.gan_model_dir)
+    # assert os.path.exists(args.gan_model_dir)
 
     ## set up save_dir
     save_dir = os.path.join(os.path.dirname(__file__), 'results/wb', args.exp_name)
@@ -118,7 +121,7 @@ class Loss(torch.nn.Module):
             self.loss_l2_fn = lambda x, y: torch.mean((y - x) ** 2, dim=[1, 2, 3])
 
     def forward(self, z, x_gt):
-        self.x_hat = self.netG(z)
+        self.x_hat = self.netG.decoder(z)['reconstruction'].detach()
         self.loss_lpips = self.loss_lpips_fn(self.x_hat, x_gt)
         self.loss_l2 = self.loss_l2_fn(self.x_hat, x_gt)
         self.vec_loss = LAMBDA2 * self.loss_lpips + self.loss_l2
@@ -149,7 +152,7 @@ def optimize_z_lbfgs(loss_model,
 
         try:
             x_batch = query_imgs[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
-            x_gt = torch.from_numpy(x_batch).permute(0, 3, 1, 2).cuda()
+            x_gt = torch.from_numpy(x_batch).permute(0, 3, 1, 2).cuda().float()
 
             if os.path.exists(save_dir_batch):
                 pass
@@ -157,7 +160,10 @@ def optimize_z_lbfgs(loss_model,
                 visualize_gt(x_batch, check_folder(save_dir_batch))
 
                 ### initialize z
+
                 z = Variable(torch.FloatTensor(init_val[i * BATCH_SIZE:(i + 1) * BATCH_SIZE])).cuda()
+                z = z.squeeze(-1)
+                z = z.squeeze(-1)
                 z_model = LatentZ(z)
 
                 ### LBFGS optimizer
@@ -229,16 +235,28 @@ def optimize_z_lbfgs(loss_model,
 # main
 #############################################################################################################
 def main():
+    # Automatically select the freest GPU.
+    os.system('nvidia-smi -q -d Memory |grep -A5 GPU|grep Free >tmp')
+    memory_available = [int(x.split()[2]) for x in open('tmp', 'r').readlines()]
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(np.argmax(memory_available))
+
     args, save_dir, load_dir = check_args(parse_arguments())
 
     global BATCH_SIZE
     BATCH_SIZE = args.batch_size
 
     ### set up Generator
-    network_path = os.path.join(load_dir, 'netG.pt')
-    netG = torch.load(network_path).cuda()
+    PATH = os.path.dirname(os.path.abspath(__file__))
+    dataset = "celeba"
+    target_model = sorted(os.listdir(os.path.join(PATH, f'../../target_model/target_models_on_{dataset}_50k')))[-1]
+    trained_model = AutoModel.load_from_folder(
+    os.path.join(PATH, f'../../target_model/target_models_on_{dataset}_50k', target_model, 'final_model'))
+    trained_model = trained_model.cuda()
+    netG = trained_model
+    # network_path = os.path.join(load_dir, 'netG.pt')
+    # netG = torch.load(network_path).cuda()
     netG.eval()
-    Z_DIM = netG.deconv1.module.in_channels
+    Z_DIM = trained_model.model_config.latent_dim
     resolution = args.resolution
 
     ### define loss
@@ -268,8 +286,13 @@ def main():
         raise NotImplementedError
 
     ### positive ###
-    pos_data_paths = get_filepaths_from_dir(args.pos_data_dir, ext='png')[: args.data_num]
-    pos_query_imgs = np.array([read_image(f, resolution) for f in pos_data_paths])
+    # pos_data_paths = get_filepaths_from_dir(args.pos_data_dir, ext='png')[: args.data_num]
+    # pos_query_imgs = np.array([read_image(f, resolution) for f in pos_data_paths])
+
+    celeba64_dataset = prepare.data_prepare("celeba", mode="ndarry")
+    pos_query_imgs = np.transpose(celeba64_dataset[:100], (0, 2, 3, 1))
+    neg_query_imgs = np.transpose(celeba64_dataset[100000:100100], (0, 2, 3, 1))
+
     query_loss, query_z, query_xhat = optimize_z_lbfgs(loss_model,
                                                        init_val_pos,
                                                        pos_query_imgs,
@@ -278,8 +301,8 @@ def main():
     save_files(save_dir, ['pos_loss'], [query_loss])
 
     ### negative ###
-    neg_data_paths = get_filepaths_from_dir(args.neg_data_dir, ext='png')[: args.data_num]
-    neg_query_imgs = np.array([read_image(f, resolution) for f in neg_data_paths])
+    # neg_data_paths = get_filepaths_from_dir(args.neg_data_dir, ext='png')[: args.data_num]
+    # neg_query_imgs = np.array([read_image(f, resolution) for f in neg_data_paths])
     query_loss, query_z, query_xhat = optimize_z_lbfgs(loss_model,
                                                        init_val_neg,
                                                        neg_query_imgs,
