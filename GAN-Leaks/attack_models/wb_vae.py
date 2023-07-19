@@ -35,7 +35,7 @@ RANDOM_SEED = 1000
 #############################################################################################################
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exp_name', '-name', type=str, default="vae_ori",
+    parser.add_argument('--exp_name', '-name', type=str, default="vae_comem",
                         help='the name of the current experiment (used to set up the save_dir)')
     parser.add_argument('--gan_model_dir', '-gdir', type=str,
                         help='directory for the Victim GAN model')
@@ -57,7 +57,7 @@ def parse_arguments():
                         help='the initialization techniques')
     parser.add_argument('--nn_dir', '-ndir', type=str,
                         help='the directory for storing the fbb(KNN) results')
-    parser.add_argument('--distance', '-dist', type=str, default='l2-lpips', choices=['l2', 'l2-lpips'],
+    parser.add_argument('--distance', '-dist', type=str, default='l2', choices=['l2', 'l2-lpips'],
                         help='the objective function type')
     parser.add_argument('--if_norm_reg', '-reg', action='store_true', default=True,
                         help='enable the norm regularizer')
@@ -171,9 +171,9 @@ def optimize_z_lbfgs(loss_model,
                 z_model = LatentZ(z)
 
                 ### LBFGS optimizer
-                optimizer = FullBatchLBFGS(z_model.parameters(), lr=LBFGS_LR, history_size=20, line_search='Wolfe',
-                                           debug=False)
-                # optimizer = torch.optim.Adam(z_model.parameters(), lr=0.001)
+                # optimizer = FullBatchLBFGS(z_model.parameters(), lr=LBFGS_LR, history_size=20, line_search='Wolfe',
+                #                            debug=False)
+                optimizer = torch.optim.Adam(z_model.parameters(), lr=0.001)
 
                 ### optimize
                 loss_progress = []
@@ -191,9 +191,9 @@ def optimize_z_lbfgs(loss_model,
                     final_loss = closure()
                     final_loss.backward()
 
-                    options = {'closure': closure, 'current_loss': final_loss, 'max_ls': 20}
-                    obj, grad, lr, _, _, _, _, _ = optimizer.step(options)
-                    # optimizer.step()
+                    # options = {'closure': closure, 'current_loss': final_loss, 'max_ls': 20}
+                    # obj, grad, lr, _, _, _, _, _ = optimizer.step(options)
+                    optimizer.step()
 
                     if step == 0:
                         ### store init
@@ -208,7 +208,10 @@ def optimize_z_lbfgs(loss_model,
                         x_hat_curr = loss_model.x_hat.data.cpu().numpy()
                         x_hat_curr = np.transpose(x_hat_curr, [0, 2, 3, 1])
 
-                        loss_lpips = loss_model.loss_lpips.data.cpu().numpy()
+                        try:
+                            loss_lpips = loss_model.loss_lpips.data.cpu().numpy()
+                        except AttributeError:
+                            loss_lpips = 0
                         loss_l2 = loss_model.loss_l2.data.cpu().numpy()
                         save_files(save_dir_batch, ['l2', 'lpips'], [loss_l2, loss_lpips])
 
