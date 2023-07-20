@@ -53,7 +53,7 @@ device = "cuda" + ":" + str(np.argmax(memory_available))
 torch.cuda.set_device(device)
 
 target_model = Discriminator()
-target_model.load_state_dict(torch.load("discriminator.pth"))
+target_model.load_state_dict(torch.load("discriminator_diff.pth"))
 
 files = utils.get_file_names("/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/total")
 all_dataset = Dataset.from_dict({"image": files}).cast_column("image", Image())
