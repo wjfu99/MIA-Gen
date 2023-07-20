@@ -14,7 +14,8 @@ def plot_roc(pos_results, neg_results):
     fpr, tpr, threshold = metrics.roc_curve(labels, results, pos_label=1)
     auc = metrics.roc_auc_score(labels, results)
     ap = metrics.average_precision_score(labels, results)
-    return fpr, tpr, threshold, auc, ap
+    threshold_point = tpr[np.argmin(np.abs(tpr - (1 - fpr)))]
+    return fpr, tpr, threshold, auc, ap, threshold_point
 
 
 def plot_hist(pos_dist, neg_dist, save_file):
@@ -34,7 +35,7 @@ def plot_hist(pos_dist, neg_dist, save_file):
 #############################################################################################################
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--result_load_dir', '-ldir', type=str, default="/mnt/data0/fuwenjie/MIA/MIA-Gen/GAN-Leaks/attack_models/results/wb/vae_test",
+    parser.add_argument('--result_load_dir', '-ldir', type=str, default="/mnt/data0/fuwenjie/MIA/MIA-Gen/GAN-Leaks/attack_models/results/wb/vae_ori",
                         help='directory of the attack result')
     parser.add_argument('--attack_type', type=str, choices=['fbb', 'pbb', 'wb'], default="wb",
                         help='type of the attack')
@@ -63,8 +64,8 @@ def main():
         neg_loss = np.load(os.path.join(result_load_dir, 'neg_loss.npy')).flatten()
 
     ### plot roc curve
-    fpr, tpr, threshold, auc, ap = plot_roc(-pos_loss, -neg_loss)
-    plt.plot(fpr, tpr, label='%s attack, auc=%.3f, ap=%.3f' % (attack_type, auc, ap))
+    fpr, tpr, threshold, auc, ap, asr = plot_roc(-pos_loss, -neg_loss)
+    plt.plot(fpr, tpr, label='%s attack, auc=%.3f, ap=%.3f, asr=%.3f' % (attack_type, auc, ap, asr))
     print("The AUC ROC value of %s attack is: %.3f " % (attack_type, auc))
 
     ################################################################
@@ -85,8 +86,8 @@ def main():
             pos_calibrate = pos_loss[:num_pos_samples] - pos_ref[:num_pos_samples, 0]
             neg_calibrate = neg_loss[:num_neg_samples] - neg_ref[:num_neg_samples, 0]
 
-        fpr, tpr, threshold, auc, ap = plot_roc(-pos_calibrate, -neg_calibrate)
-        plt.plot(fpr, tpr, label='calibrated %s attack, auc=%.3f, ap=%.3f' % (attack_type, auc, ap))
+        fpr, tpr, threshold, auc, ap, asr = plot_roc(-pos_calibrate, -neg_calibrate)
+        plt.plot(fpr, tpr, label='%s attack, auc=%.3f, ap=%.3f, asr=%.3f' % (attack_type, auc, ap, asr))
         print("The AUC ROC value of calibrated %s attack is: %.3f " % (attack_type, auc))
 
     plt.legend(loc='lower right')
