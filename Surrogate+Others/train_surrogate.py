@@ -124,7 +124,7 @@ def norm_transform_images(examples):
     images = [augmentations(image.convert("RGB")) for image in examples["image"]]
     return {"input": images}
 
-files = utils.get_file_names("/mnt/data0/fuwenjie/MIA/MIA-Gen/data/gen_dataset/vae@celeba")
+files = utils.get_file_names("/mnt/data0/fuwenjie/MIA/MIA-Gen/data/gen_dataset/diffusion@celeba")
 all_dataset = Dataset.from_dict({"image": files}).cast_column("image", Image())
 dataset = Dataset.from_dict(all_dataset[:10000])
 # dataset = prepare.data_prepare("celeba", "datasets")
