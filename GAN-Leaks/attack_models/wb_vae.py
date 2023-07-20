@@ -173,7 +173,7 @@ def optimize_z_lbfgs(loss_model,
                 ### LBFGS optimizer
                 # optimizer = FullBatchLBFGS(z_model.parameters(), lr=LBFGS_LR, history_size=20, line_search='Wolfe',
                 #                            debug=False)
-                optimizer = torch.optim.Adam(z_model.parameters(), lr=0.001)
+                optimizer = torch.optim.Adam(z_model.parameters(), lr=0.01)
 
                 ### optimize
                 loss_progress = []
