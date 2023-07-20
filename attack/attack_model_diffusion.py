@@ -361,7 +361,7 @@ class AttackModel:
         # schedular = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[])
         weight = torch.Tensor([1, 1]).cuda()
         criterion = torch.nn.CrossEntropyLoss(weight=weight)
-        print_freq = 10
+        print_freq = 1
         for i in range(cfg["epoch_number"]):
             attack_model.train()
             predict = attack_model(feat)
@@ -400,7 +400,7 @@ class AttackModel:
             feat, ground_truth = self.feat_prepare(raw_info, cfg)
             self.eval_attack(ground_truth, -feat)
 
-    def attack_demo(self, cfg, pipeline, timestep=100):
+    def attack_demo(self, cfg, pipeline, timestep=200):
         mem_data = self.datasets["target"]["train"]
         nonmem_data = self.datasets["target"]["valid"]
         mem_data.set_transform(utils.transform_images)
@@ -627,7 +627,7 @@ class AttackModel:
         return (recon_loss + KLD), recon_loss, KLD
 
     @staticmethod
-    def frequency(data, interval=(-1, 2.5), split=50):
+    def frequency(data, interval=(-1, 1), split=50):
         # Get the number of random variables
         C = data.shape[0]
 

@@ -90,8 +90,8 @@ all_dataset = Dataset.from_dict({"image": files}).cast_column("image", Image())
 
 datasets = {
     "target": {
-        "train": Dataset.from_dict(all_dataset[random.sample(range(0, 50000), cfg["sample_number"])]),
-        "valid": Dataset.from_dict(all_dataset[random.sample(range(50000, 60000), cfg["sample_number"])])
+        "train": Dataset.from_dict(all_dataset[:100]),
+        "valid": Dataset.from_dict(all_dataset[50000:50100])
             },
     "shadow": {
         "train": Dataset.from_dict(all_dataset[random.sample(range(60000, 110000), cfg["sample_number"])]),
@@ -104,6 +104,6 @@ datasets = {
 }
 
 attack_model = AttackModel(target_model, datasets, reference_model, shadow_model, cfg=cfg)
-# attack_model.attack_demo(cfg, target_model)
+attack_model.attack_demo(cfg, target_model)
 # attack_model.attack_model_training(cfg=cfg)
-attack_model.conduct_attack(cfg=cfg)
+# attack_model.conduct_attack(cfg=cfg)
