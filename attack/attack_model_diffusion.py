@@ -342,6 +342,8 @@ class AttackModel:
             mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_feat, nonmem_feat)
             feat = torch.cat([mem_feat, nonmem_feat])
             feat[torch.isnan(feat)] = 0
+            if cfg["target_model"] == "diffusion":
+                feat = feat.unsqueeze(1)
             ground_truth = torch.cat([torch.zeros(mem_feat.shape[0]), torch.ones(nonmem_feat.shape[0])]).type(torch.LongTensor).cuda()
         return feat, ground_truth
 
@@ -357,7 +359,8 @@ class AttackModel:
 
         feature_dim = feat.shape[-1]
         # attack_model = MLAttckerModel(feature_dim, output_size=2).cuda()
-        attack_model = ResNet18(num_channels=1, num_classes=2).cuda()
+        attack_model = ResNet18(num_channels=1, num_classes=2).cuda() if cfg["target_model"] == "diffusion" \
+            else MLAttckerModel(feature_dim, output_size=2).cuda()
         if cfg["load_trained"] and utils.check_files_exist(save_path):
             attack_model.load_state_dict(torch.load(save_path))
             self.attack_model = attack_model
@@ -368,8 +371,6 @@ class AttackModel:
         weight = torch.Tensor([1, 1]).cuda()
         criterion = torch.nn.CrossEntropyLoss(weight=weight)
         print_freq = 1
-        feat = feat.unsqueeze(1)
-        eval_feat = eval_feat.unsqueeze(1)
         for i in range(cfg["epoch_number"]):
             attack_model.train()
             predict = attack_model(feat)
@@ -400,7 +401,6 @@ class AttackModel:
             attack_model = self.attack_model
             raw_info = self.data_prepare("target", cfg)
             feat, ground_truth = self.feat_prepare(raw_info, cfg)
-            feat = feat.unsqueeze(1)
             predict = attack_model(feat)
             # predict, ground_truth = utils.tensor_to_ndarray(predict, ground_truth)
             self.eval_attack(ground_truth, predict[:, 1])
@@ -595,10 +595,11 @@ class AttackModel:
         return per_dataset
 
     @staticmethod
-    def image_dataset_perturbation(dataset):
+    def image_dataset_perturbation(dataset, strength):
         perturbation = transforms.Compose([
             transforms.ToTensor(),
-            transforms.RandomResizedCrop(size=(64, 64), scale=(0.8, 0.8))
+            transforms.CenterCrop(size=int(64 * strength)),
+            transforms.Resize(size=64),
         ])
         def transform_images(examples):
             images = [perturbation(image.convert("RGB")) for image in examples["image"]]
