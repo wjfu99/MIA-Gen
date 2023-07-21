@@ -40,11 +40,11 @@ if cfg["target_model"] == "diffusion":
     target_model = DiffusionPipeline.from_pretrained(target_path).to(device)
 
 
-    shadow_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-shadow')
-    shadow_model = None
+    shadow_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-50k-shadow/checkpoint-247500')
+    shadow_model = DiffusionPipeline.from_pretrained(shadow_path).to(device)
 
-    reference_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-reference')
-    reference_model = None
+    reference_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-50k-reference/checkpoint-247500')
+    reference_model = DiffusionPipeline.from_pretrained(reference_path).to(device)
 elif cfg["target_model"] == "vae":
     target_path = sorted(os.listdir(PATH + '/target_model/target_models_on_' + cfg["dataset"] + "_50k"))[-1]
     target_model = AutoModel.load_from_folder(
@@ -90,8 +90,8 @@ all_dataset = Dataset.from_dict({"image": files}).cast_column("image", Image())
 
 datasets = {
     "target": {
-        "train": Dataset.from_dict(all_dataset[:100]),
-        "valid": Dataset.from_dict(all_dataset[50000:50100])
+        "train": Dataset.from_dict(all_dataset[random.sample(range(0, 50000), cfg["sample_number"])]),
+        "valid": Dataset.from_dict(all_dataset[random.sample(range(50000, 60000), cfg["sample_number"])])
             },
     "shadow": {
         "train": Dataset.from_dict(all_dataset[random.sample(range(60000, 110000), cfg["sample_number"])]),
@@ -104,6 +104,6 @@ datasets = {
 }
 
 attack_model = AttackModel(target_model, datasets, reference_model, shadow_model, cfg=cfg)
-attack_model.attack_demo(cfg, target_model)
+# attack_model.attack_demo(cfg, target_model)
 # attack_model.attack_model_training(cfg=cfg)
-# attack_model.conduct_attack(cfg=cfg)
+attack_model.conduct_attack(cfg=cfg)

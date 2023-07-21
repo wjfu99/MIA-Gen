@@ -417,7 +417,7 @@ class AttackModel:
             )
             ddpm_result = []
             ddim_result = []
-            for iteration, batch in enumerate(data_loader):
+            for iteration, batch in tqdm(enumerate(data_loader)):
                 clean_images = batch["input"].cuda()
                 # start_time = time.time()
                 ddpm_loss = self.ddpm_loss(pipeline, clean_images, timestep)
