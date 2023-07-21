@@ -19,6 +19,7 @@ import random
 import time
 from torchvision import transforms
 from datasets import Image, Dataset
+from attack.resnet import ResNet18
 
 logger = logging.getLogger(__name__)
 console = logging.StreamHandler()
@@ -163,12 +164,13 @@ class AttackModel:
         loss_function = getattr(self, cfg["loss_kind"]+"_loss")
         diffusion_steps = noise_scheduler.config.num_train_timesteps
         interval = diffusion_steps // cfg["diffusion_sample_number"]
+        sample_steps = cfg["diffusion_sample_steps"]
 
         for iteration, batch in enumerate(data_loader):
             clean_images = batch["input"].cuda()
             batch_loss = np.zeros((cfg["eval_batch_size"], cfg["diffusion_sample_number"]))
             # start_time = time.time()
-            for i, timestep in enumerate(range(interval, diffusion_steps, interval)):
+            for i, timestep in enumerate(sample_steps):
                 if cfg["loss_kind"] == "ddpm":
                     loss = self.ddpm_loss(pipeline, clean_images, timestep)
                 elif cfg["loss_kind"] == "ddim":
@@ -223,8 +225,9 @@ class AttackModel:
         ori_dataset.set_transform(self.transform_images if cfg["target_model"] == "vae" else self.norm_transform_images)
         ori_losses = model_eval_function(model, ori_dataset, cfg)
         ref_ori_losses = model_eval_function(self.reference_model, ori_dataset, cfg) if cfg["calibration"] else None
-        for _ in tqdm(range(cfg["perturbation_number"])):
-            per_dataset = dataset_perturbation_function(dataset)
+        strength = np.linspace(cfg['start_strength'], cfg['end_strength'], cfg['perturbation_number'])
+        for i in tqdm(range(cfg["perturbation_number"])):
+            per_dataset = dataset_perturbation_function(dataset, strength=strength[i])
             per_loss = model_eval_function(model, per_dataset, cfg)
             per_losses.append(np.expand_dims(per_loss, -1))
             ref_per_loss = model_eval_function(self.reference_model, per_dataset, cfg) if cfg["calibration"] else None
@@ -323,9 +326,9 @@ class AttackModel:
             mem_feat = info_dict.mem_feat.var_losses / np.expand_dims(info_dict.mem_feat.ori_losses, -1)
             nonmem_feat = info_dict.nonmem_feat.var_losses / np.expand_dims(info_dict.nonmem_feat.ori_losses, -1)
             # gen_feat = info_dict.gen_feat.var_losses / info_dict.gen_feat.ori_losses[:, :, None]
-        if cfg["target_model"] == "diffusion":
-            mem_feat = mem_feat[:, 2, :]
-            nonmem_feat = nonmem_feat[:, 2, :]
+        # if cfg["target_model"] == "diffusion":
+        #     mem_feat = mem_feat[:, 2, :]
+        #     nonmem_feat = nonmem_feat[:, 2, :]
             # gen_feat = gen_feat[:, 2, :]
 
         if cfg["attack_kind"] == "stat":
@@ -333,10 +336,12 @@ class AttackModel:
             ground_truth = np.concatenate([np.zeros(mem_feat.shape[0]), np.ones(nonmem_feat.shape[0])]).astype(np.int)
 
         elif cfg["attack_kind"] == "nn":
-            mem_freq = self.frequency(mem_feat, split=100)
-            nonmem_freq = self.frequency(nonmem_feat, split=100)
-            mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_freq, nonmem_freq)
+            # mem_freq = self.frequency(mem_feat, split=100)
+            # nonmem_freq = self.frequency(nonmem_feat, split=100)
+            # mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_freq, nonmem_freq)
+            mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_feat, nonmem_feat)
             feat = torch.cat([mem_feat, nonmem_feat])
+            feat[torch.isnan(feat)] = 0
             ground_truth = torch.cat([torch.zeros(mem_feat.shape[0]), torch.ones(nonmem_feat.shape[0])]).type(torch.LongTensor).cuda()
         return feat, ground_truth
 
@@ -351,7 +356,8 @@ class AttackModel:
         eval_feat, eval_ground_truth = self.feat_prepare(eval_raw_info, cfg)
 
         feature_dim = feat.shape[-1]
-        attack_model = MLAttckerModel(feature_dim, output_size=2).cuda()
+        # attack_model = MLAttckerModel(feature_dim, output_size=2).cuda()
+        attack_model = ResNet18(num_channels=1, num_classes=2).cuda()
         if cfg["load_trained"] and utils.check_files_exist(save_path):
             attack_model.load_state_dict(torch.load(save_path))
             self.attack_model = attack_model
@@ -362,6 +368,8 @@ class AttackModel:
         weight = torch.Tensor([1, 1]).cuda()
         criterion = torch.nn.CrossEntropyLoss(weight=weight)
         print_freq = 1
+        feat = feat.unsqueeze(1)
+        eval_feat = eval_feat.unsqueeze(1)
         for i in range(cfg["epoch_number"]):
             attack_model.train()
             predict = attack_model(feat)
@@ -392,6 +400,7 @@ class AttackModel:
             attack_model = self.attack_model
             raw_info = self.data_prepare("target", cfg)
             feat, ground_truth = self.feat_prepare(raw_info, cfg)
+            feat = feat.unsqueeze(1)
             predict = attack_model(feat)
             # predict, ground_truth = utils.tensor_to_ndarray(predict, ground_truth)
             self.eval_attack(ground_truth, predict[:, 1])
@@ -569,10 +578,12 @@ class AttackModel:
         return {"input": images}
 
     @staticmethod
-    def norm_image_dataset_perturbation(dataset):
+    def norm_image_dataset_perturbation(dataset, strength):
         perturbation = transforms.Compose([
             transforms.ToTensor(),
-            transforms.RandomResizedCrop(size=(64, 64), scale=(0.8, 0.8)),
+            # transforms.RandomResizedCrop(size=(64, 64), scale=(0.8, 0.8)),
+            transforms.CenterCrop(size=int(64 * strength)),
+            transforms.Resize(size=64),
             transforms.Normalize([0.5], [0.5]),
         ])
         def transform_images(examples):
