@@ -32,19 +32,38 @@ PATH = os.getcwd()
 
 NLL = torch.nn.NLLLoss(ignore_index=0, reduction='none')
 
+# class MLAttckerModel(nn.Module): # TODO: we can use a CNN model for attack
+#     def __init__(self, input_size, hidden_size=128, output_size=2):
+#         super(MLAttckerModel, self).__init__()
+#         self.input_layer = nn.Linear(input_size, hidden_size)
+#         self.hidden_layer = nn.Linear(hidden_size, hidden_size)
+#         self.output_layer = nn.Linear(hidden_size, output_size)
+#
+#     def forward(self, x):
+#         x = torch.relu(self.input_layer(x))
+#         x = torch.relu(self.hidden_layer(x))
+#         output = self.output_layer(x)
+#         return output
+
 class MLAttckerModel(nn.Module): # TODO: we can use a CNN model for attack
     def __init__(self, input_size, hidden_size=128, output_size=2):
         super(MLAttckerModel, self).__init__()
-        self.input_layer = nn.Linear(input_size, hidden_size)
-        self.hidden_layer = nn.Linear(hidden_size, hidden_size)
-        self.output_layer = nn.Linear(hidden_size, output_size)
+        self.conv1 = nn.Conv1d(1, 3, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv1d(3, 8, kernel_size=4, stride=2, padding=1)
+        self.conv3 = nn.Conv1d(8, 4, kernel_size=3, stride=2, padding=1)
+        self.conv4 = nn.Conv1d(4, 1, kernel_size=3, stride=1, padding=1)
+
+        self.output_layer = nn.Linear(5, output_size)
 
     def forward(self, x):
-        x = torch.relu(self.input_layer(x))
-        x = torch.relu(self.hidden_layer(x))
+        x = x.unsqueeze(1)
+        x = torch.relu(self.conv1(x))
+        x = torch.relu(self.conv2(x))
+        x = torch.relu(self.conv3(x))
+        x = torch.relu(self.conv4(x))
         output = self.output_layer(x)
+        output = output.squeeze(1)
         return output
-
 
 class AttackModel:
     def __init__(self, target_model, datasets, reference_model, shadow_model, cfg):
@@ -366,7 +385,7 @@ class AttackModel:
             self.attack_model = attack_model
             self.is_model_training = True
             return
-        optimizer = optim.Adam(attack_model.parameters(), lr=0.001, weight_decay=0.0005)
+        optimizer = optim.Adam(attack_model.parameters(), lr=0.01, weight_decay=0)
         # schedular = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[])
         weight = torch.Tensor([1, 1]).cuda()
         criterion = torch.nn.CrossEntropyLoss(weight=weight)
