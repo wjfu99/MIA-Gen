@@ -354,9 +354,11 @@ class AttackModel:
             # gen_feat = gen_feat[:, 2, :]
 
         if cfg["attack_kind"] == "stat":
+            mem_feat = mem_feat[:, :, 5]
+            nonmem_feat = nonmem_feat[:, :, 5]
             mem_feat[np.isnan(mem_feat)] = 0
             nonmem_feat[np.isnan(nonmem_feat)] = 0
-            feat = np.concatenate([mem_feat.mean(axis=(-1, -2)), nonmem_feat.mean(axis=(-1, -2))])
+            feat = np.concatenate([mem_feat.mean(axis=(-1)), nonmem_feat.mean(axis=(-1))])
             ground_truth = np.concatenate([np.zeros(mem_feat.shape[0]), np.ones(nonmem_feat.shape[0])]).astype(np.int)
 
         elif cfg["attack_kind"] == "nn":
