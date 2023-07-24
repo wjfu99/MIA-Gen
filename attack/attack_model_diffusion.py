@@ -210,9 +210,12 @@ class AttackModel:
             pin_memory=torch.cuda.is_available()
         )
         for iteration, batch in enumerate(data_loader):
-            input_dict = {"data": batch["input"].cuda()}
-            output_batch = self.output_reformat(model(input_dict)).loss
-            outputs.append(output_batch)
+            batch_loss = np.zeros((cfg["eval_batch_size"], cfg["extensive_per_num"]))
+            for i in range(cfg['extensive_per_num']):
+                input_dict = {"data": batch["input"].cuda()}
+                output_batch = self.output_reformat(model(input_dict)).loss
+                batch_loss[:, i] = output_batch
+            outputs.append(batch_loss)
         output = np.concatenate(outputs, axis=0)
         # input = input.cuda()
         # num_inputs = input.shape[0]
@@ -351,7 +354,9 @@ class AttackModel:
             # gen_feat = gen_feat[:, 2, :]
 
         if cfg["attack_kind"] == "stat":
-            feat = np.concatenate([mem_feat.mean(axis=-1), nonmem_feat.mean(axis=-1)])
+            mem_feat[np.isnan(mem_feat)] = 0
+            nonmem_feat[np.isnan(nonmem_feat)] = 0
+            feat = np.concatenate([mem_feat.mean(axis=(-1, -2)), nonmem_feat.mean(axis=(-1, -2))])
             ground_truth = np.concatenate([np.zeros(mem_feat.shape[0]), np.ones(nonmem_feat.shape[0])]).astype(np.int)
 
         elif cfg["attack_kind"] == "nn":
@@ -361,8 +366,8 @@ class AttackModel:
             mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_feat, nonmem_feat)
             feat = torch.cat([mem_feat, nonmem_feat])
             feat[torch.isnan(feat)] = 0
-            if cfg["target_model"] == "diffusion":
-                feat = feat.unsqueeze(1)
+            # if cfg["target_model"] == "diffusion":
+            feat = feat.unsqueeze(1)
             ground_truth = torch.cat([torch.zeros(mem_feat.shape[0]), torch.ones(nonmem_feat.shape[0])]).type(torch.LongTensor).cuda()
         return feat, ground_truth
 
@@ -378,8 +383,9 @@ class AttackModel:
 
         feature_dim = feat.shape[-1]
         # attack_model = MLAttckerModel(feature_dim, output_size=2).cuda()
-        attack_model = ResNet18(num_channels=1, num_classes=2).cuda() if cfg["target_model"] == "diffusion" \
-            else MLAttckerModel(feature_dim, output_size=2).cuda()
+        # attack_model = ResNet18(num_channels=1, num_classes=2).cuda() if cfg["target_model"] == "diffusion" \
+        #     else MLAttckerModel(feature_dim, output_size=2).cuda()
+        attack_model = ResNet18(num_channels=1, num_classes=2).cuda()
         if cfg["load_trained"] and utils.check_files_exist(save_path):
             attack_model.load_state_dict(torch.load(save_path))
             self.attack_model = attack_model
