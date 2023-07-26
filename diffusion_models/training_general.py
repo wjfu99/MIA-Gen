@@ -480,12 +480,17 @@ def main(args):
     # In distributed training, the load_dataset function guarantees that only one local process can concurrently
     # download the dataset.
     if args.dataset_name is not None:
-        dataset = load_dataset(
-            args.dataset_name,
-            args.dataset_config_name,
-            cache_dir=args.cache_dir,
-            split="train",
-        )
+
+        tiny_imagenet_train = load_dataset(args.dataset_name, args.dataset_config_name, cache_dir=args.cache_dir, split='train')
+        tiny_imagenet_eval = load_dataset(args.dataset_name, args.dataset_config_name, cache_dir=args.cache_dir, split='valid')
+
+        train_dict = tiny_imagenet_train[:len(tiny_imagenet_train)]
+        eval_dict = tiny_imagenet_eval[:len(tiny_imagenet_eval)]
+
+        all_dict = {'image': train_dict['image'] + eval_dict['image']}
+        total_dataset = Dataset.from_dict(all_dict)
+        dataset = Dataset.from_dict(total_dataset[args.train_sta_idx:args.train_end_idx])
+        eval_dataset = Dataset.from_dict(total_dataset[args.eval_sta_idx:args.eval_end_idx])
     else:
         files = get_file_names(args.train_data_dir)
         total_dataset = datasets.Dataset.from_dict({"image": files}).cast_column("image", Image())
