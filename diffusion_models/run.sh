@@ -105,10 +105,10 @@
 
   #### train ddpm for tiny-in dataset
     accelerate launch training_general.py \
-  --dataset_name="Maysee/tiny-imagenet" \
+  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/Tiny-IN" \
   --resume_from_checkpoint "latest" \
   --resolution=64 --center_crop \
-  --output_dir="ddpm-tinyin-64-50k" \
+  --output_dir="ddpm-tinyin-64-30k" \
   --train_batch_size=16 \
   --num_epochs=400 \
   --checkpointing_steps=1500 \
@@ -123,10 +123,10 @@
 
   #### train ddpm for tiny-in dataset
     accelerate launch training_general.py \
-  --dataset_name="Maysee/tiny-imagenet" \
+  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/Tiny-IN" \
   --resume_from_checkpoint "latest" \
   --resolution=64 --center_crop \
-  --output_dir="ddpm-tinyin-64-50k-shadow" \
+  --output_dir="ddpm-tinyin-64-30k-shadow" \
   --train_batch_size=16 \
   --num_epochs=400 \
   --checkpointing_steps=1500 \
@@ -141,10 +141,10 @@
 
     #### train ddpm for tiny-in dataset
     accelerate launch training_general.py \
-  --dataset_name="Maysee/tiny-imagenet" \
+  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/Tiny-IN" \
   --resume_from_checkpoint "latest" \
   --resolution=64 --center_crop \
-  --output_dir="ddpm-tinyin-64-50k-reference" \
+  --output_dir="ddpm-tinyin-64-30k-reference" \
   --train_batch_size=16 \
   --num_epochs=400 \
   --checkpointing_steps=1500 \
