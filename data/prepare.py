@@ -22,7 +22,10 @@ def transform_images(examples):
 
 def data_prepare(data="celeba", mode="ndarry"):
     # supported mode ndarry, datasets
-    files = utils.get_file_names("/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/total")
+    if data == "celeba":
+        files = utils.get_file_names("/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/total")
+    elif data == "tinyin":
+        files = utils.get_file_names("/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/Tiny-IN")
     full_dataset = datasets.Dataset.from_dict({"image": files}).cast_column("image", datasets.Image())
     if mode == "datasets":
         return full_dataset
