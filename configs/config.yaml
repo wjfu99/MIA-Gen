@@ -1,7 +1,7 @@
 tensorboard: True
 random_seed: 42
 
-target_model: diffusion # valid model: diffusion, vae
+target_model: vae # valid model: diffusion, vae
 dataset: celeba # valid dataset: celeba, tiny-in
 attack_kind: nn # valid attacks: nn, stat
 loss_kind: ddpm # valid loss estimation methods: ddpm, ddim
@@ -20,5 +20,5 @@ attack_data_path: attack
 #
 epoch_number: 1000
 load_trained: False # whether to load existing trained attack model
-load_attack_data: false # whether to load prepared attack data if existing.
+load_attack_data: true # whether to load prepared attack data if existing.
 split: [123123, 3213]

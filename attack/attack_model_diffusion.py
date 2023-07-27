@@ -366,6 +366,9 @@ class AttackModel:
             # nonmem_freq = self.frequency(nonmem_feat, split=100)
             # mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_freq, nonmem_freq)
             mem_feat, nonmem_feat = utils.ndarray_to_tensor(mem_feat, nonmem_feat)
+            if cfg["target_model"] == "vae":
+                mem_feat.sort(axis=1)
+                nonmem_feat.sort(axis=1)
             feat = torch.cat([mem_feat, nonmem_feat])
             feat[torch.isnan(feat)] = 0
             # if cfg["target_model"] == "diffusion":
