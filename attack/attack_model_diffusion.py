@@ -438,9 +438,9 @@ class AttackModel:
         elif cfg["attack_kind"] == 'stat':
             raw_info = self.data_prepare("target", cfg)
             feat, ground_truth = self.feat_prepare(raw_info, cfg)
-            self.distinguishability_plot(raw_info['mem_feat']['ori_losses'].mean(-1),
-                                         raw_info['nonmem_feat']['ori_losses'].mean(-1))
-            self.distinguishability_plot(feat[:1000], feat[-1000:])
+            # self.distinguishability_plot(raw_info['mem_feat']['ori_losses'].mean(-1),
+            #                              raw_info['nonmem_feat']['ori_losses'].mean(-1))
+            # self.distinguishability_plot(feat[:1000], feat[-1000:])
             self.eval_attack(ground_truth, -feat)
 
     def attack_demo(self, cfg, pipeline, timestep=200):
@@ -531,9 +531,10 @@ class AttackModel:
         non_mem_std = round(non_mem.std(), 2)
 
         plt.xlabel(r"$\overline{\mathcal{F}}(\mathbf{x}, \theta)$", fontsize=16, labelpad=10)
-        plt.ylabel('Density', fontsize=16, labelpad=10)
+        plt.xlabel(r"$L_{\rm{ELOB}}\left({x}\right)$", fontsize=22, labelpad=10)
+        plt.ylabel('Density', fontsize=22, labelpad=10)
         plt.legend(['Member', 'Non-member'], fontsize=20, loc='upper right')
-        plt.xlim([0.02, 0.09])
+        plt.xlim([0, 500])
         mem_text = '\n'.join((
                     r'$\mu_{Mem}=%.2f$' % (mem_mean, ),
                     r'$\sigma_{Mem}=%.2f$' % (mem_std, )))
@@ -544,11 +545,11 @@ class AttackModel:
         non_mem_props = dict(boxstyle='round', facecolor=non_mem_color, alpha=0.15, edgecolor='black')
 
         plt.tick_params(labelsize=16)
-        plt.text(0.04, 0.6, mem_text, transform=plt.gca().transAxes, fontsize=22, bbox=mem_props)
-        plt.text(0.63, 0.25, non_mem_text, transform=plt.gca().transAxes, fontsize=22, bbox=non_mem_props)
+        plt.text(0.47, 0.45, mem_text, transform=plt.gca().transAxes, fontsize=22, bbox=mem_props)
+        plt.text(0.5, 0.15, non_mem_text, transform=plt.gca().transAxes, fontsize=22, bbox=non_mem_props)
 
         plt.tight_layout()
-        plt.savefig("distinguishability-diffusion-naive.pdf", format="pdf", bbox_inches="tight")
+        plt.savefig("distinguishability-vae-naive.pdf", format="pdf", bbox_inches="tight")
         plt.show()
 
     @staticmethod
