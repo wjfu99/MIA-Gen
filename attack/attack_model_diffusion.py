@@ -20,6 +20,7 @@ import time
 from torchvision import transforms
 from datasets import Image, Dataset
 from attack.resnet import ResNet18
+import seaborn as sns
 
 logger = logging.getLogger(__name__)
 console = logging.StreamHandler()
@@ -437,6 +438,9 @@ class AttackModel:
         elif cfg["attack_kind"] == 'stat':
             raw_info = self.data_prepare("target", cfg)
             feat, ground_truth = self.feat_prepare(raw_info, cfg)
+            self.distinguishability_plot(raw_info['mem_feat']['ori_losses'].mean(-1),
+                                         raw_info['nonmem_feat']['ori_losses'].mean(-1))
+            self.distinguishability_plot(feat[:1000], feat[-1000:])
             self.eval_attack(ground_truth, -feat)
 
     def attack_demo(self, cfg, pipeline, timestep=200):
@@ -513,6 +517,14 @@ class AttackModel:
     #         plt.title('Discriminative Performance on Different Categories of Data.')
     #         plt.legend(loc="lower right")
     #         plt.show()
+    @staticmethod
+    def distinguishability_plot(mem, non_mem):
+        sns.kdeplot(mem, fill=True, color='red', alpha=0.5)
+        sns.kdeplot(non_mem, fill=True, color='blue', alpha=0.5)
+        plt.xlabel('Minimum increase of loss')
+        plt.ylabel('Density')
+        plt.legend(['Member', 'Non-member'])  # Add a single legend with both labels
+        plt.show()
 
     @staticmethod
     def eval_attack(y_true, y_scores, plot=True):
