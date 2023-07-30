@@ -534,7 +534,7 @@ class AttackModel:
         # plt.xlabel(r"$L_{\rm{ELOB}}\left({x}\right)$", fontsize=22, labelpad=10)
         plt.ylabel('Density', fontsize=22, labelpad=10)
         plt.legend(['Member', 'Non-member'], fontsize=20, loc='upper right')
-        plt.xlim([-0.25, 1])
+        plt.xlim([-0.6, 0.9])
         mem_text = '\n'.join((
                     r'$\mu_{Mem}=%.2f$' % (mem_mean, ),
                     r'$\sigma_{Mem}=%.2f$' % (mem_std, )))
@@ -545,11 +545,11 @@ class AttackModel:
         non_mem_props = dict(boxstyle='round', facecolor=non_mem_color, alpha=0.15, edgecolor='black')
 
         plt.tick_params(labelsize=16)
-        plt.text(0.55, 0.15, mem_text, transform=plt.gca().transAxes, fontsize=22, bbox=mem_props)
-        plt.text(0.27, 0.45, non_mem_text, transform=plt.gca().transAxes, fontsize=22, bbox=non_mem_props)
+        plt.text(0.63, 0.25, mem_text, transform=plt.gca().transAxes, fontsize=22, bbox=mem_props)
+        plt.text(0.04, 0.6, non_mem_text, transform=plt.gca().transAxes, fontsize=22, bbox=non_mem_props)
 
         plt.tight_layout()
-        plt.savefig("distinguishability-vae-our.pdf", format="pdf", bbox_inches="tight")
+        plt.savefig("distinguishability-diffusion-our.pdf", format="pdf", bbox_inches="tight")
         plt.show()
 
     @staticmethod

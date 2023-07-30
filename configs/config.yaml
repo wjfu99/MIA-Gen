@@ -1,7 +1,7 @@
 tensorboard: True
 random_seed: 42
 
-target_model: vae # valid model: diffusion, vae
+target_model: diffusion # valid model: diffusion, vae
 dataset: celeba # valid dataset: celeba, tinyin
 attack_kind: stat # valid attacks: nn, stat
 loss_kind: ddpm # valid loss estimation methods: ddpm, ddim
