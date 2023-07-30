@@ -26,6 +26,9 @@ train_dict = tiny_imagenet_train[:100000]
 eval_dict = tiny_imagenet_eval[:10000]
 
 all_dict = {'image': train_dict['image'] + eval_dict['image']}
+random.shuffle(all_dict['image'])
+random.shuffle(all_dict['image'])
+random.shuffle(all_dict['image'])
 
 all_dataset = Dataset.from_dict(all_dict)
 img_path = "/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/Tiny-IN/"
