@@ -518,6 +518,18 @@ class AttackModel:
     #         plt.legend(loc="lower right")
     #         plt.show()
     @staticmethod
+    def heatmap_plot(data, **kwargs):
+        ax = sns.heatmap(data, annot=True,
+                         # cmap='crest',
+                         fmt='.2f', **kwargs)
+        ax.set_xlabel('Perturbation Strength', fontsize=18)
+        ax.set_ylabel('Time step', fontsize=18)
+        ax.set_xticklabels(['{:.2f}'.format(label) for label in np.linspace(0.95, 0.7, 10)], fontsize=12)
+        ax.set_yticklabels([0, 50, 100, 150, 200, 250, 300, 350, 400, 450], fontsize=12)
+        plt.tight_layout()
+        plt.savefig("heat-diffusion-naive.pdf", format="pdf", bbox_inches="tight")
+        plt.show()
+    @staticmethod
     def distinguishability_plot(mem, non_mem):
         sns.set_theme()
         mem_color = "indianred"
