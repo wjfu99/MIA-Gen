@@ -339,15 +339,15 @@ class AttackModel:
         # mem_info = info_dict.mem_feat
         # ref_mem_info = info_dict.ref_mem_feat
         if cfg["calibration"]:
-            mem_feat = np.expand_dims(info_dict.mem_feat.ori_losses, -1)\
-                       - np.expand_dims(info_dict.ref_mem_feat.ref_ori_losses, -1)
-            nonmem_feat = np.expand_dims(info_dict.nonmem_feat.ori_losses, -1)\
-                       - np.expand_dims(info_dict.ref_nonmem_feat.ref_ori_losses, -1)
+            mem_feat = info_dict.mem_feat.var_losses / np.expand_dims(info_dict.mem_feat.ori_losses, -1)\
+                       - info_dict.ref_mem_feat.ref_var_losses / np.expand_dims(info_dict.ref_mem_feat.ref_ori_losses, -1)
+            nonmem_feat = info_dict.nonmem_feat.var_losses / np.expand_dims(info_dict.nonmem_feat.ori_losses, -1)\
+                       - info_dict.ref_nonmem_feat.ref_var_losses / np.expand_dims(info_dict.ref_nonmem_feat.ref_ori_losses, -1)
             # gen_feat = info_dict.gen_feat.var_losses / info_dict.gen_feat.ori_losses[:, :, None] \
             #               - info_dict.ref_gen_feat.ref_var_losses / info_dict.ref_gen_feat.ref_ori_losses[:, :, None]
         else:
-            mem_feat = np.expand_dims(info_dict.mem_feat.ori_losses, -1)
-            nonmem_feat = np.expand_dims(info_dict.nonmem_feat.ori_losses, -1)
+            mem_feat = info_dict.mem_feat.var_losses / np.expand_dims(info_dict.mem_feat.ori_losses, -1)
+            nonmem_feat = info_dict.nonmem_feat.var_losses / np.expand_dims(info_dict.nonmem_feat.ori_losses, -1)
             # gen_feat = info_dict.gen_feat.var_losses / info_dict.gen_feat.ori_losses[:, :, None]
         # if cfg["target_model"] == "diffusion":
         #     mem_feat = mem_feat[:, 2, :]
@@ -355,11 +355,11 @@ class AttackModel:
             # gen_feat = gen_feat[:, 2, :]
 
         if cfg["attack_kind"] == "stat":
-            # mem_feat = mem_feat[:, :, 5]
-            # nonmem_feat = nonmem_feat[:, :, 5]
+            mem_feat = mem_feat[:, :, 5]
+            nonmem_feat = nonmem_feat[:, :, 5]
             mem_feat[np.isnan(mem_feat)] = 0
             nonmem_feat[np.isnan(nonmem_feat)] = 0
-            feat = np.concatenate([mem_feat.mean(axis=(-1, -2)), nonmem_feat.mean(axis=(-1, -2))])
+            feat = np.concatenate([mem_feat.mean(axis=(-1)), nonmem_feat.mean(axis=(-1))])
             ground_truth = np.concatenate([np.zeros(mem_feat.shape[0]), np.ones(nonmem_feat.shape[0])]).astype(np.int)
 
         elif cfg["attack_kind"] == "nn":
@@ -578,9 +578,6 @@ class AttackModel:
         # Finding the threshold point where FPR + TPR equals 1
         threshold_point = tpr[np.argmin(np.abs(tpr - (1 - fpr)))]
         logger.info(f"ASR on the target model: {threshold_point}")
-
-        tpr_1fpr = tpr[np.argmin(np.abs(fpr - 0.01))]
-        logger.info(f"TPR @ 1% FPR on the target model: {tpr_1fpr}")
 
         if plot:
             # plot the ROC curve
