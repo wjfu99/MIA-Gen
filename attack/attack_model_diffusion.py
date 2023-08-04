@@ -530,7 +530,23 @@ class AttackModel:
         cbar = ax.collections[0].colorbar
         cbar.ax.tick_params(labelsize=12)
         plt.tight_layout()
-        plt.savefig("heat-diffusion-naive.pdf", format="pdf", bbox_inches="tight")
+        plt.savefig("heat-diffusion-mem.pdf", format="pdf", bbox_inches="tight")
+        plt.show()
+
+    @staticmethod
+    def vec_heatmap(vec, **kwargs):
+        vec = vec.reshape((1, -1))
+        ax = sns.heatmap(vec, annot=True,
+                         yticklabels=False,
+                         square=True,
+                         cbar=False,
+                         annot_kws={"fontsize": 14},
+                         # cmap='crest',
+                         fmt='.2f', **kwargs)
+        ax.set_xticklabels([0, 50, 100, 150, 200, 250, 300, 350, 400, 450], fontsize=14)
+        ax.set_xlabel('Time step $t$', fontsize=18)
+        plt.tight_layout()
+        plt.savefig("heat-diffusion-nonmem.pdf", format="pdf", bbox_inches="tight")
         plt.show()
     @staticmethod
     def distinguishability_plot(mem, non_mem):
