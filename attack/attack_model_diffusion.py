@@ -33,7 +33,7 @@ PATH = os.getcwd()
 
 NLL = torch.nn.NLLLoss(ignore_index=0, reduction='none')
 
-# class MLAttckerModel(nn.Module): # TODO: we can use a CNN model for attack
+# class MLAttckerModel(nn.Module):
 #     def __init__(self, input_size, hidden_size=128, output_size=2):
 #         super(MLAttckerModel, self).__init__()
 #         self.input_layer = nn.Linear(input_size, hidden_size)
@@ -46,7 +46,7 @@ NLL = torch.nn.NLLLoss(ignore_index=0, reduction='none')
 #         output = self.output_layer(x)
 #         return output
 
-class MLAttckerModel(nn.Module): # TODO: we can use a CNN model for attack
+class MLAttckerModel(nn.Module):
     def __init__(self, input_size, hidden_size=128, output_size=2):
         super(MLAttckerModel, self).__init__()
         self.conv1 = nn.Conv1d(1, 3, kernel_size=3, stride=1, padding=1)

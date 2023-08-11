@@ -16,9 +16,11 @@ import json
 import yaml
 from data.prepare import data_prepare
 
+# Load config file
 with open("configs/config.yaml", 'r') as f:
     cfg = yaml.safe_load(f)
 
+# Add Logger
 logger = logging.getLogger(__name__)
 console = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -26,13 +28,24 @@ console.setFormatter(formatter)
 logger.addHandler(console)
 logger.setLevel(logging.INFO)
 
+# Load abs path
 PATH = os.path.dirname(os.path.abspath(__file__))
+
 # Automatically select the freest GPU.
 os.system('nvidia-smi -q -d Memory |grep -A5 GPU|grep Free >tmp')
 memory_available = [int(x.split()[2]) for x in open('tmp', 'r').readlines()]
 os.environ["CUDA_VISIBLE_DEVICES"] = str(np.argmax(memory_available))
 device = "cuda" + ":" + str(np.argmax(memory_available))
 torch.cuda.set_device(device)
+
+# Fix the random seed
+seed = 0
+torch.manual_seed(seed)
+np.random.seed(seed)
+torch.cuda.manual_seed_all(seed)
+random.seed(seed)
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
 
 
 ## Load text generation model.
