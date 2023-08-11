@@ -1,7 +1,7 @@
 tensorboard: True
 random_seed: 42
 
-target_model: diffusion # valid model: diffusion, vae
+target_model: vae # valid model: diffusion, vae
 dataset: celeba # valid dataset: celeba, tinyin
 attack_kind: stat # valid attacks: nn, stat
 loss_kind: ddpm # valid loss estimation methods: ddpm, ddim
@@ -14,8 +14,8 @@ diffusion_sample_number: 10 # the number of equidistant sampling
 diffusion_sample_steps: [0, 50, 100, 150, 200, 250, 300, 350, 400, 450] # the sample steps of diffusion model
 perturbation_number: 10 # the number of query
 extensive_per_num: 10 # sample number, should be set 1 for diffusion models
-start_strength: 32 # start strength factor of the perturbation mechanism
-end_strength: 4 # end strength factor of the perturbation mechanism
+start_strength: 2 # start strength factor of the perturbation mechanism
+end_strength: 0.1 # end strength factor of the perturbation mechanism
 attack_data_path: attack
 #
 epoch_number: 1000
