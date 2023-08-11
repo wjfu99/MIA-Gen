@@ -15,7 +15,7 @@ diffusion_sample_steps: [0, 50, 100, 150, 200, 250, 300, 350, 400, 450] # the sa
 perturbation_number: 10 # the number of query
 extensive_per_num: 10 # sample number, should be set 1 for diffusion models
 start_strength: 0 # start strength factor of the perturbation mechanism
-end_strength: 90 # end strength factor of the perturbation mechanism
+end_strength: 1 # end strength factor of the perturbation mechanism
 attack_data_path: attack
 #
 epoch_number: 1000
