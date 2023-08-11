@@ -688,7 +688,7 @@ class AttackModel:
             # transforms.RandomResizedCrop(size=(64, 64), scale=(0.8, 0.8)),
             # transforms.CenterCrop(size=int(64 * strength)),
             # transforms.Resize(size=64),
-            transforms.ColorJitter(saturation=(strength, strength)),
+            transforms.ColorJitter(hue=(strength, strength)),
             transforms.Normalize([0.5], [0.5]),
         ])
         def transform_images(examples):
