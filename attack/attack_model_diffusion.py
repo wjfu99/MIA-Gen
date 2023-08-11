@@ -708,7 +708,7 @@ class AttackModel:
             transforms.ToTensor(),
             # transforms.CenterCrop(size=int(64 * strength)),
             # transforms.Resize(size=64),
-            transforms.ColorJitter(saturation=(strength, strength)),
+            transforms.ColorJitter(hue=(strength, strength)),
         ])
         def transform_images(examples):
             images = [perturbation(image.convert("RGB")) for image in examples["image"]]
