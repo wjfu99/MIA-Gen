@@ -48,7 +48,7 @@ torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 
 
-## Load text generation model.
+## Load generation models.
 if cfg['dataset'] == "tinyin":
     if cfg["target_model"] == "diffusion":
         target_path = os.path.join(PATH, 'diffusion_models/ddpm-tinyin-64-30k')
