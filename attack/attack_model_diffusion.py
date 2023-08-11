@@ -522,15 +522,15 @@ class AttackModel:
         ax = sns.heatmap(data, annot=True,
                          # cmap='crest',
                          fmt='.2f', **kwargs)
-        ax.set_xlabel(r'Perturbation Strength Factor $\lambda$', fontsize=18)
-        ax.set_ylabel('Time step $t$', fontsize=18)
-        ax.set_xticklabels(['{:.2f}'.format(label) for label in np.linspace(0.95, 0.7, 10)],
+        ax.set_ylabel(r'Perturbation Strength Factor $\lambda$', fontsize=18)
+        ax.set_xlabel('Time step $t$', fontsize=18)
+        ax.set_yticklabels(['{:.2f}'.format(label) for label in np.linspace(0.95, 0.7, 10)],
                            fontsize=14, rotation=45)
-        ax.set_yticklabels([0, 50, 100, 150, 200, 250, 300, 350, 400, 450], fontsize=14, rotation=45)
+        ax.set_xticklabels([0, 50, 100, 150, 200, 250, 300, 350, 400, 450], fontsize=14, rotation=45)
         cbar = ax.collections[0].colorbar
         cbar.ax.tick_params(labelsize=12)
         plt.tight_layout()
-        plt.savefig("heat-diffusion-mem.pdf", format="pdf", bbox_inches="tight")
+        plt.savefig("heat-diffusion-naive.pdf", format="pdf", bbox_inches="tight")
         plt.show()
 
     @staticmethod
@@ -546,7 +546,7 @@ class AttackModel:
         ax.set_xticklabels([0, 50, 100, 150, 200, 250, 300, 350, 400, 450], fontsize=14)
         ax.set_xlabel('Time step $t$', fontsize=18)
         plt.tight_layout()
-        plt.savefig("heat-diffusion-nonmem.pdf", format="pdf", bbox_inches="tight")
+        plt.savefig("heat-diffusion-naive.pdf", format="pdf", bbox_inches="tight")
         plt.show()
     @staticmethod
     def distinguishability_plot(mem, non_mem):

@@ -19,6 +19,6 @@ end_strength: 0.7
 attack_data_path: attack
 #
 epoch_number: 1000
-load_trained: False # whether to load existing trained attack model
+load_trained: true # whether to load existing trained attack model
 load_attack_data: true # whether to load prepared attack data if existing.
 split: [123123, 3213]
