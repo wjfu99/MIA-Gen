@@ -355,8 +355,8 @@ class AttackModel:
             # gen_feat = gen_feat[:, 2, :]
 
         if cfg["attack_kind"] == "stat":
-            mem_feat = mem_feat[:, :, 2]
-            nonmem_feat = nonmem_feat[:, :, 2]
+            mem_feat = mem_feat[:, :, 9]
+            nonmem_feat = nonmem_feat[:, :, 9]
             mem_feat[np.isnan(mem_feat)] = 0
             nonmem_feat[np.isnan(nonmem_feat)] = 0
             feat = np.concatenate([mem_feat.mean(axis=(-1)), nonmem_feat.mean(axis=(-1))])
@@ -688,7 +688,9 @@ class AttackModel:
             # transforms.RandomResizedCrop(size=(64, 64), scale=(0.8, 0.8)),
             # transforms.CenterCrop(size=int(64 * strength)),
             # transforms.Resize(size=64),
-            transforms.RandomPerspective(distortion_scale=strength, p=1),
+            # transforms.RandomPerspective(distortion_scale=strength, p=1),
+            transforms.Resize(size=int(strength)),
+            transforms.Resize(size=64),
             # transforms.ColorJitter(hue=(strength, strength)),
             transforms.Normalize([0.5], [0.5]),
         ])
