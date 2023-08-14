@@ -26,20 +26,21 @@ pip install -r requirements.txt
 
 
 ## Target Models Training
-
+  All Diffusion models are built on top of [diffuser](https://huggingface.co/docs/diffusers/index), 
+  a go-to library for state-of-the-art diffusion models, 
+  on which you can train arbitrary state-of-the-art diffusion models you want. 
+  Similarly, all VAEs are deployed by [pythae](https://github.com/clementchadebec/benchmark_VAE), 
+  another generative model library with massive VAEs from previous to recent ones.. 
+  So you can evaluate our attack algorithm on more diverse generative models, which is what we hope to see.
 
 
 * ### Diffusion Models
-  
-  All Diffusion models are built on top of [diffuser](https://huggingface.co/docs/diffusers/index), 
-  on which you can train arbitrary state-of-the-art diffusion models you want. 
-  So you can evaluate our attack algorithm on more diverse generative models, which is what we hope to see.
   We recommend to train diffusion models with multi-GPU and [accelerate](https://huggingface.co/docs/accelerate/index), 
   a library that enables the same PyTorch code to be run across any distributed configuration. 
   Below is a sample to train a DDPM on Celeba-64, and the training script for all other diffusion models can be found in the [path](./diffusion_models) folder:
   ```bash
     accelerate launch training_general.py \
-    --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/total" \
+    --train_data_dir="Replace with your dataset here" \
     --resume_from_checkpoint "latest" \
     --resolution=64 --center_crop \
     --output_dir="ddpm-celeba-64-50k" \
@@ -57,25 +58,70 @@ pip install -r requirements.txt
   ```
 
 * ### VAEs
-  Similarly, all VAEs are deployed on by [pythae](https://huggingface.co/docs/diffusers/index), 
-  on which you can train arbitrary state-of-the-art diffusion models you want. 
-    ```json
-      "env_args":
-      {
-        "train_ratio": 0.4,
-        "sim_days": 40,
-        "seq_num": 1,
-        "unique_len": 16,
-        "dataset": "Larger"
-      },
+  Below is a sample to train a vanilla VAE on Celeba-64, and the training script for all other VAE models can be found in the [path](./diffusion_models) folder:
+    ```bash
+   python training.py \
+    --dataset celeba  \
+    --model_name vae \
+    --model_config './configs/celeba/vae_config.json' \
+    --training_config './configs/celeba/base_training_config.json' \
+    --train_sta_idx=0 \
+    --train_end_idx=50000 \
+    --eval_sta_idx=50000 \
+    --eval_end_idx=60000
     ```
 ## Pre-trained model
 Pre-trained models can be downloaded from Hugging-face, we will release links after reviewing for anonymization.
   
 ## Run PFAMI
 
-To execute SecMI over pretrained DDPM, please execute the following command:
-```bash
-tensorboard --logdir runs --host 0.0.0.0
-```
-The visualization results can be found in [http://localhost:6006](http://localhost:6006)
+To execute PFAMI on diffusion models and VAEs, please manually modify the _"target_model"_ item in the config file `config.json`:
+* ### Diffusion models
+
+    ```yaml
+      random_seed: 42
+      target_model: diffusion # valid model: diffusion, vae
+      dataset: celeba # valid dataset: celeba, tinyin
+      attack_kind: stat # valid attacks: nn, stat
+      loss_kind: ddpm # valid loss estimation methods: ddpm, ddim
+      time_step: 10
+      time_sec: 100
+      calibration: true # whether to enable calibration
+      sample_number: 1000 # the number of samples for each data group
+      eval_batch_size: 100 # batch size of the evaluation phase
+      diffusion_sample_number: 10 # the number of equidistant sampling
+      diffusion_sample_steps: [0, 50, 100, 150, 200, 250, 300, 350, 400, 450] # the sample steps of diffusion model
+      perturbation_number: 10 # the number of query
+      extensive_per_num: 10 # sample number, should be set 1 for diffusion models
+      start_strength: 0.95 # start strength factor of the perturbation mechanism
+      end_strength: 0.7 # end strength factor of the perturbation mechanism
+      attack_data_path: attack
+      epoch_number: 1000
+      load_trained: true # whether to load existing trained attack model
+      load_attack_data: true # whether to load prepared attack data if existing.
+    ```
+
+* ### VAEs
+
+    ```yaml
+      random_seed: 42
+      target_model: vae # valid model: diffusion, vae
+      dataset: celeba # valid dataset: celeba, tinyin
+      attack_kind: stat # valid attacks: nn, stat
+      loss_kind: ddpm # valid loss estimation methods: ddpm, ddim
+      time_step: 10
+      time_sec: 100
+      calibration: true # whether to enable calibration
+      sample_number: 1000 # the number of samples for each data group
+      eval_batch_size: 100 # batch size of the evaluation phase
+      diffusion_sample_number: 10 # the number of equidistant sampling
+      diffusion_sample_steps: [0, 50, 100, 150, 200, 250, 300, 350, 400, 450] # the sample steps of diffusion model
+      perturbation_number: 10 # the number of query
+      extensive_per_num: 10 # sample number, should be set 1 for diffusion models
+      start_strength: 0.95 # start strength factor of the perturbation mechanism
+      end_strength: 0.7 # end strength factor of the perturbation mechanism
+      attack_data_path: attack
+      epoch_number: 1000
+      load_trained: true # whether to load existing trained attack model
+      load_attack_data: true # whether to load prepared attack data if existing.
+    ```
