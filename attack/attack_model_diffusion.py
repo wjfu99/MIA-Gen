@@ -426,6 +426,8 @@ class AttackModel:
         torch.save(attack_model.state_dict(), save_path)
 
     def conduct_attack(self, cfg):
+        save_path = os.path.join(PATH, cfg["attack_data_path"], f"attack_data_{cfg['target_model']}@{cfg['dataset']}",
+                                 f"roc_{cfg['attack_kind']}.npz")
         if cfg["attack_kind"] == 'nn':
             if not self.is_model_training:
                 self.attack_model_training(cfg)
@@ -434,14 +436,14 @@ class AttackModel:
             feat, ground_truth = self.feat_prepare(raw_info, cfg)
             predict = attack_model(feat)
             # predict, ground_truth = utils.tensor_to_ndarray(predict, ground_truth)
-            self.eval_attack(ground_truth, predict[:, 1])
+            self.eval_attack(ground_truth, predict[:, 1], path=save_path)
         elif cfg["attack_kind"] == 'stat':
             raw_info = self.data_prepare("target", cfg)
             feat, ground_truth = self.feat_prepare(raw_info, cfg)
             # self.distinguishability_plot(raw_info['mem_feat']['ori_losses'].mean(-1),
             #                              raw_info['nonmem_feat']['ori_losses'].mean(-1))
             # self.distinguishability_plot(feat[:1000], feat[-1000:])
-            self.eval_attack(ground_truth, -feat)
+            self.eval_attack(ground_truth, -feat, path=save_path)
 
     def attack_demo(self, cfg, pipeline, timestep=200):
         mem_data = self.datasets["target"]["train"]
@@ -584,10 +586,12 @@ class AttackModel:
         plt.show()
 
     @staticmethod
-    def eval_attack(y_true, y_scores, plot=True):
+    def eval_attack(y_true, y_scores, plot=True, path=None):
         if type(y_true) == torch.Tensor:
             y_true, y_scores = utils.tensor_to_ndarray(y_true, y_scores)
         fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+        if path is not None:
+            np.savez(path, fpr=fpr, tpr=tpr)
         auc_score = roc_auc_score(y_true, y_scores)
         logger.info(f"AUC on the target model: {auc_score}")
 
@@ -686,9 +690,9 @@ class AttackModel:
         perturbation = transforms.Compose([
             transforms.ToTensor(),
             # transforms.RandomResizedCrop(size=(64, 64), scale=(0.8, 0.8)),
-            # transforms.CenterCrop(size=int(64 * strength)),
+            transforms.CenterCrop(size=int(64 * strength)),
             transforms.Resize(size=64),
-            transforms.RandomPerspective(distortion_scale=strength, p=1),
+            # transforms.RandomPerspective(distortion_scale=strength, p=1),
             # transforms.Resize(size=int(strength)),
             # transforms.Resize(size=64),
             # transforms.ColorJitter(hue=(strength, strength)),

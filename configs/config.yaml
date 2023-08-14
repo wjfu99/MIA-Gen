@@ -3,7 +3,7 @@ random_seed: 42
 
 target_model: diffusion # valid model: diffusion, vae
 dataset: celeba # valid dataset: celeba, tinyin
-attack_kind: stat # valid attacks: nn, stat
+attack_kind: nn # valid attacks: nn, stat
 loss_kind: ddpm # valid loss estimation methods: ddpm, ddim
 time_step: 10
 time_sec: 100
@@ -19,6 +19,6 @@ end_strength: 0.7 # end strength factor of the perturbation mechanism
 attack_data_path: attack
 #
 epoch_number: 1000
-load_trained: true # whether to load existing trained attack model
+load_trained: false # whether to load existing trained attack model
 load_attack_data: true # whether to load prepared attack data if existing.
 split: [123123, 3213]
