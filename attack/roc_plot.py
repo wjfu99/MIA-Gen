@@ -22,12 +22,16 @@ def load_roc(data_path):
 # closest_point = (fpr[closest_point_index], tpr[closest_point_index])
 pfami_nn = load_roc(os.path.join(PATH, f"attack_data_{target_model}@{dataset}", 'roc_nn.npz'))
 pfami_met = load_roc(os.path.join(PATH, f"attack_data_{target_model}@{dataset}", 'roc_stat.npz'))
+secmi_nn = load_roc("/mnt/data0/fuwenjie/MIA/SecMI/mia_evals/roc_nns.npz")
+secmi_met = load_roc("/mnt/data0/fuwenjie/MIA/SecMI/mia_evals/roc_stat.npz")
 
 
 
 roc_df = pd.DataFrame({
     r'${\rm PFAMI}_{NNs}$': pfami_nn,
     r'${\rm PFAMI}_{Met}$': pfami_met,
+    r'${\rm SecMI}_{NNs}$': secmi_nn,
+    r'${\rm SecMI}_{Stat}$': secmi_met,
 })
 
 
