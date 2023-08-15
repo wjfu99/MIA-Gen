@@ -18,7 +18,7 @@ start_strength: 0.95 # start strength factor of the perturbation mechanism
 end_strength: 0.7 # end strength factor of the perturbation mechanism
 attack_data_path: attack
 #
-epoch_number: 1000
+epoch_number: 150
 load_trained: false # whether to load existing trained attack model
 load_attack_data: true # whether to load prepared attack data if existing.
 split: [123123, 3213]
