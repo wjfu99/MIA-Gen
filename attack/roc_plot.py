@@ -7,7 +7,7 @@ import pandas as pd
 # Load abs path
 PATH = os.path.dirname(os.path.abspath(__file__))
 # attack_data_path = "attack"
-target_model = "diffusion"
+target_model = "vae"
 dataset = "celeba"
 def load_roc(data_path):
     roc = np.load(data_path)
@@ -24,14 +24,14 @@ pfami_nn = load_roc(os.path.join(PATH, f"attack_data_{target_model}@{dataset}", 
 pfami_met = load_roc(os.path.join(PATH, f"attack_data_{target_model}@{dataset}", 'roc_stat.npz'))
 secmi_nn = load_roc("/mnt/data0/fuwenjie/MIA/SecMI/mia_evals/roc_nns.npz")
 secmi_met = load_roc("/mnt/data0/fuwenjie/MIA/SecMI/mia_evals/roc_stat.npz")
-
+comem = load_roc("/mnt/data0/fuwenjie/MIA/MIA-Gen/GAN-Leaks/attack_models/tools/roc.npz")
 
 
 roc_df = pd.DataFrame({
     r'${\rm PFAMI}_{NNs}$': pfami_nn,
     r'${\rm PFAMI}_{Met}$': pfami_met,
-    r'${\rm SecMI}_{NNs}$': secmi_nn,
-    r'${\rm SecMI}_{Stat}$': secmi_met,
+    r'Co-Membership': comem,
+
 })
 
 
