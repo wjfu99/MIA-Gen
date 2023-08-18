@@ -1,5 +1,5 @@
 #accelerate launch training_general.py \
-#  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/VAEs/data/celeba64/total" \
+#  --train_data_dir="~/MIA/MIA-Gen/VAEs/data/celeba64/total" \
 #  --resume_from_checkpoint "latest" \
 #  --resolution=64 --center_crop \
 #  --output_dir="ddpm-celeba-64-test" \
@@ -16,7 +16,7 @@
 
 
 #accelerate launch training_general.py \
-#  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/VAEs/data/celeba64/total" \
+#  --train_data_dir="~/MIA/MIA-Gen/VAEs/data/celeba64/total" \
 #  --resume_from_checkpoint "latest" \
 #  --resolution=64 --center_crop \
 #  --output_dir="ddpm-celeba-64-target2" \
@@ -32,7 +32,7 @@
 #  --eval_end_idx=11000
 # for 100k training datasets
 #accelerate launch training_general.py \
-#  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/VAEs/data/celeba64/total" \
+#  --train_data_dir="~/MIA/MIA-Gen/VAEs/data/celeba64/total" \
 #  --resume_from_checkpoint "latest" \
 #  --resolution=64 --center_crop \
 #  --output_dir="ddpm-celeba-64-100k" \
@@ -50,7 +50,7 @@
 
   # for 50k training datasets target
   accelerate launch training_general.py \
-  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/total" \
+  --train_data_dir="~/MIA/MIA-Gen/target_model/data/celeba64/total" \
   --resume_from_checkpoint "latest" \
   --resolution=64 --center_crop \
   --output_dir="ddpm-celeba-64-50k" \
@@ -68,7 +68,7 @@
 
     # for 50k training datasets shadow
   accelerate launch training_general.py \
-  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/total" \
+  --train_data_dir="~/MIA/MIA-Gen/target_model/data/celeba64/total" \
   --resume_from_checkpoint "latest" \
   --resolution=64 --center_crop \
   --output_dir="ddpm-celeba-64-50k-shadow" \
@@ -86,7 +86,7 @@
 
       # for 50k training datasets reference
   accelerate launch training_general.py \
-  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/total" \
+  --train_data_dir="~/MIA/MIA-Gen/target_model/data/celeba64/total" \
   --resume_from_checkpoint "latest" \
   --resolution=64 --center_crop \
   --output_dir="ddpm-celeba-64-50k-reference" \
@@ -105,7 +105,7 @@
 
   #### train ddpm for tiny-in dataset
     accelerate launch training_general.py \
-  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/Tiny-IN" \
+  --train_data_dir="~/MIA/MIA-Gen/target_model/data/Tiny-IN" \
   --resume_from_checkpoint "latest" \
   --resolution=64 --center_crop \
   --output_dir="ddpm-tinyin-64-30k" \
@@ -123,7 +123,7 @@
 
   #### train ddpm for tiny-in dataset
     accelerate launch training_general.py \
-  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/Tiny-IN" \
+  --train_data_dir="~/MIA/MIA-Gen/target_model/data/Tiny-IN" \
   --resume_from_checkpoint "latest" \
   --resolution=64 --center_crop \
   --output_dir="ddpm-tinyin-64-30k-shadow" \
@@ -141,7 +141,7 @@
 
     #### train ddpm for tiny-in dataset
     accelerate launch training_general.py \
-  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/Tiny-IN" \
+  --train_data_dir="~/MIA/MIA-Gen/target_model/data/Tiny-IN" \
   --resume_from_checkpoint "latest" \
   --resolution=64 --center_crop \
   --output_dir="ddpm-tinyin-64-30k-reference" \
