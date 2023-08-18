@@ -62,19 +62,19 @@ if cfg['dataset'] == "tinyin":
         # reference_model = DiffusionPipeline.from_pretrained(reference_path).to(device)
         reference_model = None
     elif cfg["target_model"] == "vae":
-        target_path = sorted(os.listdir(PATH + '/target_model/target_models_on_' + cfg["dataset"] + "_50k"))[-1]
+        target_path = sorted(os.listdir(PATH + '/VAEs/target_models_on_' + cfg["dataset"] + "_50k"))[-1]
         target_model = AutoModel.load_from_folder(
-            os.path.join(PATH + '/target_model/target_models_on_' + cfg["dataset"] + "_50k", target_path, 'final_model'))
+            os.path.join(PATH + '/VAEs/target_models_on_' + cfg["dataset"] + "_50k", target_path, 'final_model'))
         target_model = target_model.to(device)
 
-        reference_path = sorted(os.listdir(PATH + '/target_model/reference_models_on_' + cfg["dataset"] + "_50k"))[-1]
+        reference_path = sorted(os.listdir(PATH + '/VAEs/reference_models_on_' + cfg["dataset"] + "_50k"))[-1]
         reference_model = AutoModel.load_from_folder(
-            os.path.join(PATH + '/target_model/reference_models_on_' + cfg["dataset"] + "_50k", reference_path, 'final_model'))
+            os.path.join(PATH + '/VAEs/reference_models_on_' + cfg["dataset"] + "_50k", reference_path, 'final_model'))
         reference_model = reference_model.to(device)
 
-        shadow_path = sorted(os.listdir(PATH + '/target_model/shadow_models_on_' + cfg["dataset"] + "_50k"))[-1]
+        shadow_path = sorted(os.listdir(PATH + '/VAEs/shadow_models_on_' + cfg["dataset"] + "_50k"))[-1]
         shadow_model = AutoModel.load_from_folder(
-            os.path.join(PATH + '/target_model/shadow_models_on_' + cfg["dataset"] + "_50k", shadow_path, 'final_model'))
+            os.path.join(PATH + '/VAEs/shadow_models_on_' + cfg["dataset"] + "_50k", shadow_path, 'final_model'))
         shadow_model = shadow_model.to(device)
 elif cfg['dataset'] == "celeba":
     if cfg["target_model"] == "diffusion":
@@ -87,21 +87,21 @@ elif cfg['dataset'] == "celeba":
         reference_path = os.path.join(PATH, 'diffusion_models/ddpm-celeba-64-50k-reference/checkpoint-247500')
         reference_model = DiffusionPipeline.from_pretrained(reference_path).to(device)
     elif cfg["target_model"] == "vae":
-        target_path = sorted(os.listdir(PATH + '/target_model/target_models_on_' + cfg["dataset"] + "_50k"))[-1]
+        target_path = sorted(os.listdir(PATH + '/VAEs/target_models_on_' + cfg["dataset"] + "_50k"))[-1]
         target_model = AutoModel.load_from_folder(
-            os.path.join(PATH + '/target_model/target_models_on_' + cfg["dataset"] + "_50k", target_path,
+            os.path.join(PATH + '/VAEs/target_models_on_' + cfg["dataset"] + "_50k", target_path,
                          'final_model'))
         target_model = target_model.to(device)
 
-        reference_path = sorted(os.listdir(PATH + '/target_model/reference_models_on_' + cfg["dataset"] + "_50k"))[-1]
+        reference_path = sorted(os.listdir(PATH + '/VAEs/reference_models_on_' + cfg["dataset"] + "_50k"))[-1]
         reference_model = AutoModel.load_from_folder(
-            os.path.join(PATH + '/target_model/reference_models_on_' + cfg["dataset"] + "_50k", reference_path,
+            os.path.join(PATH + '/VAEs/reference_models_on_' + cfg["dataset"] + "_50k", reference_path,
                          'final_model'))
         reference_model = reference_model.to(device)
 
-        shadow_path = sorted(os.listdir(PATH + '/target_model/shadow_models_on_' + cfg["dataset"] + "_50k"))[-1]
+        shadow_path = sorted(os.listdir(PATH + '/VAEs/shadow_models_on_' + cfg["dataset"] + "_50k"))[-1]
         shadow_model = AutoModel.load_from_folder(
-            os.path.join(PATH + '/target_model/shadow_models_on_' + cfg["dataset"] + "_50k", shadow_path,
+            os.path.join(PATH + '/VAEs/shadow_models_on_' + cfg["dataset"] + "_50k", shadow_path,
                          'final_model'))
         shadow_model = shadow_model.to(device)
 

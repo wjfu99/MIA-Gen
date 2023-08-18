@@ -1,5 +1,5 @@
 #accelerate launch training_general.py \
-#  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/total" \
+#  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/VAEs/data/celeba64/total" \
 #  --resume_from_checkpoint "latest" \
 #  --resolution=64 --center_crop \
 #  --output_dir="ddpm-celeba-64-test" \
@@ -16,7 +16,7 @@
 
 
 #accelerate launch training_general.py \
-#  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/total" \
+#  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/VAEs/data/celeba64/total" \
 #  --resume_from_checkpoint "latest" \
 #  --resolution=64 --center_crop \
 #  --output_dir="ddpm-celeba-64-target2" \
@@ -32,7 +32,7 @@
 #  --eval_end_idx=11000
 # for 100k training datasets
 #accelerate launch training_general.py \
-#  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/target_model/data/celeba64/total" \
+#  --train_data_dir="/mnt/data0/fuwenjie/MIA/MIA-Gen/VAEs/data/celeba64/total" \
 #  --resume_from_checkpoint "latest" \
 #  --resolution=64 --center_crop \
 #  --output_dir="ddpm-celeba-64-100k" \
