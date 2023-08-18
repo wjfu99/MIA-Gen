@@ -30,12 +30,12 @@ pip install -r requirements.txt
   a go-to library for state-of-the-art diffusion models, 
   on which you can train arbitrary state-of-the-art diffusion models you want. 
   Similarly, all VAEs are deployed by [pythae](https://github.com/clementchadebec/benchmark_VAE), 
-  another generative model library with massive VAEs from previous to recent ones.. 
+  another generative model library with massive VAEs from previous to recent ones. 
   So you can evaluate our attack algorithm on more diverse generative models, which is what we hope to see.
 
 
 * ### Diffusion Models
-  We recommend to train diffusion models with multi-GPU and [accelerate](https://huggingface.co/docs/accelerate/index), 
+  We recommend training diffusion models with multi-GPU and [accelerate](https://huggingface.co/docs/accelerate/index), 
   a library that enables the same PyTorch code to be run across any distributed configuration. 
   Below is a sample to train a DDPM on Celeba-64, and the training script for all other diffusion models can be found in the [path](./diffusion_models) folder:
   ```bash
@@ -58,7 +58,7 @@ pip install -r requirements.txt
   ```
 
 * ### VAEs
-  Below is a sample to train a vanilla VAE on Celeba-64, and the training script for all other VAE models can be found in the [path](./diffusion_models) folder:
+  Below is a sample to train a vanilla VAE on Celeba-64, and the training script for all other VAE models can be found in the [path](./VAEs) folder:
     ```bash
    python training.py \
     --dataset celeba  \
@@ -71,10 +71,20 @@ pip install -r requirements.txt
     --eval_end_idx=60000
     ```
 ## Pre-trained model
-Pre-trained models can be downloaded from Hugging-face, we will release links after reviewing for anonymization.
-  
-## Run PFAMI
+The generative models used in this study have been released and are available for download from Hugging-face using a simple one-line code. These models have been trained and are ready to be used for further research or reproduction: 
+```python
+from diffusers import DiffusionPipeline
 
+repo_id = "anonymous/Target_model@Dataset"
+pipe = DiffusionPipeline.from_pretrained(repo_id, use_safetensors=True)
+```
+In order to anonymize the study, we have omitted specific links, and the actual links will be disclosed after the review process.
+## Run PFAMI
+Here is the command for deploying probabilistic fluctuation assessing membership inference attack on 
+both diffusion models and VAEs.
+```bash
+python attacker_PFAMI.py
+```
 To execute PFAMI on diffusion models and VAEs, please manually modify the _"target_model"_ item in the config file `config.json`:
 * ### Diffusion models
 
