@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import logging
 import random
 
-from attack.attack_model_diffusion import AttackModel
+from attack.attack_model_PFAMI import AttackModel
 from pythae.models import AutoModel
 from diffusers import DiffusionPipeline
 from datasets import Image, Dataset
