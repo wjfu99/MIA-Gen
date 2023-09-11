@@ -1,5 +1,4 @@
-# Unveiling Memorization in Generative Models: A Probabilistic Fluctuation based
-Membership Inference Attack
+# Unveiling Memorization in Generative Models: A Probabilistic Fluctuation based Membership Inference Attack
 
 This is the official implementation of the paper "Unveiling Memorization in Generative Models: A Probabilistic Fluctuation based
 Membership Inference Attack".
