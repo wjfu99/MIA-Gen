@@ -1,6 +1,8 @@
-# Are overfitting-free generative models vulnerable to membership inference attack?
+# Unveiling Memorization in Generative Models: A Probabilistic Fluctuation based
+Membership Inference Attack
 
-This is the official implementation of the paper "Are overfitting-free generative models vulnerable to membership inference attack?".
+This is the official implementation of the paper "Unveiling Memorization in Generative Models: A Probabilistic Fluctuation based
+Membership Inference Attack".
 The proposed **P**robabilistic **F**luctuation **A**ssessing **M**embership **I**nference (PFAMI) is implemented as follows.
 
 ![The overall architecture of _PFAMI_](./Framework.png)
